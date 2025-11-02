@@ -1,0 +1,70 @@
+{
+  "name": "@gridplatform/grid-cli",
+  "version": "0.1.0",
+  "description": "Grid Platform CLI - Command-line interface for Infrastructure Orchestration",
+  "main": "dist/index.js",
+  "bin": {
+    "grid": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "infrastructure",
+    "orchestration",
+    "devops",
+    "terraform",
+    "opentofu",
+    "cli",
+    "iac"
+  ],
+  "author": "Grid Platform Team <team@gridplatform.org>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gridplatform/grid-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gridplatform/grid-cli/issues"
+  },
+  "homepage": "https://github.com/gridplatform/grid-cli#readme",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "zod": "^3.22.4",
+    "handlebars": "^4.7.8",
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.12",
+    "ora": "^7.0.1",
+    "fs-extra": "^11.2.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.3",
+    "@types/handlebars": "^4.1.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2",
+    "tsx": "^4.7.0",
+    "vitest": "^1.0.4",
+    "@vitest/coverage-v8": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
+
