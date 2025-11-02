@@ -1,0 +1,39 @@
+{
+  "provider": "gcp",
+  "project": "your-gcp-project-id",
+  "region": "us-central1",
+  "resources": [
+    {
+      "type": "vpc",
+      "name": "production-vpc",
+      "cidr": "10.0.0.0/16",
+      "description": "Production VPC for application infrastructure"
+    },
+    {
+      "type": "subnet",
+      "name": "production-subnet",
+      "vpc": "production-vpc",
+      "cidr": "10.0.1.0/24",
+      "region": "us-central1",
+      "description": "Production subnet in us-central1"
+    },
+    {
+      "type": "vm",
+      "name": "app-server",
+      "machineType": "e2-standard-2",
+      "subnet": "production-subnet",
+      "zone": "us-central1-a",
+      "image": "ubuntu-os-cloud/ubuntu-2204-lts",
+      "diskSize": 20,
+      "diskType": "pd-standard",
+      "tags": ["production", "app-server"],
+      "description": "Application server VM"
+    }
+  ],
+  "metadata": {
+    "name": "simple-vpc-vm",
+    "description": "Simple example with VPC, subnet, and VM",
+    "environment": "dev"
+  }
+}
+
