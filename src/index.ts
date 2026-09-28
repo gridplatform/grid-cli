@@ -12,7 +12,11 @@ import { generateCommand } from './commands/generate';
 import { deployCommand } from './commands/deploy';
 import { validateCommand } from './commands/validate';
 import { statusCommand } from './commands/status';
+import { providersCommand } from './commands/providers';
+import { bootstrapProviders } from './providers';
 import { version } from '../package.json';
+
+bootstrapProviders();
 
 const program = new Command();
 
@@ -26,6 +30,7 @@ generateCommand(program);
 deployCommand(program);
 validateCommand(program);
 statusCommand(program);
+providersCommand(program);
 
 // Parse arguments
 program.parse(process.argv);
