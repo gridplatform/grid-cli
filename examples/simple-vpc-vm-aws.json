@@ -1,0 +1,35 @@
+{
+  "provider": "aws",
+  "project": "grid-demo",
+  "region": "ap-south-1",
+  "resources": [
+    {
+      "type": "vpc",
+      "name": "grid-demo-vpc",
+      "cidr": "10.20.0.0/16",
+      "description": "Grid demo VPC for AWS interview showcase"
+    },
+    {
+      "type": "subnet",
+      "name": "grid-demo-public",
+      "vpc": "grid-demo-vpc",
+      "cidr": "10.20.1.0/24",
+      "region": "ap-south-1",
+      "description": "Public subnet in ap-south-1a"
+    },
+    {
+      "type": "vm",
+      "name": "grid-demo-app",
+      "machineType": "t3.micro",
+      "subnet": "grid-demo-public",
+      "diskSize": 20,
+      "tags": ["grid", "demo", "app"],
+      "description": "Demo EC2 for Grid control-plane hosting"
+    }
+  ],
+  "metadata": {
+    "name": "simple-vpc-vm-aws",
+    "description": "AWS VPC + public subnet + EC2 (ap-south-1)",
+    "environment": "dev"
+  }
+}

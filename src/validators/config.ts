@@ -1,15 +1,15 @@
 import { z } from 'zod';
+import { PROVIDER_IDS } from '../providers/types';
 
 /**
  * Grid Configuration Schema
- * 
- * Defines the structure for Grid JSON configuration files
+ *
+ * Defines the structure for Grid JSON configuration files.
+ * `provider` accepts any registered ProviderId; generate enforces supported status.
  */
 
-// Provider enum
-const ProviderSchema = z.enum(['gcp', 'aws', 'azure']);
+const ProviderSchema = z.enum(PROVIDER_IDS as unknown as [string, ...string[]]);
 
-// Resource type schemas
 const VpcResourceSchema = z.object({
   type: z.literal('vpc'),
   name: z.string(),
@@ -20,7 +20,7 @@ const VpcResourceSchema = z.object({
 const SubnetResourceSchema = z.object({
   type: z.literal('subnet'),
   name: z.string(),
-  vpc: z.string(), // Reference to VPC name
+  vpc: z.string(),
   cidr: z.string().regex(/^\d+\.\d+\.\d+\.\d+\/\d+$/, 'Invalid CIDR format'),
   region: z.string().optional(),
   description: z.string().optional(),
@@ -31,7 +31,7 @@ const VmResourceSchema = z.object({
   name: z.string(),
   machineType: z.string(),
   zone: z.string().optional(),
-  subnet: z.string(), // Reference to subnet name
+  subnet: z.string(),
   image: z.string().optional(),
   diskSize: z.number().optional(),
   diskType: z.string().optional(),
@@ -39,28 +39,80 @@ const VmResourceSchema = z.object({
   description: z.string().optional(),
 });
 
-// Union of all resource types
-const ResourceSchema = z.discriminatedUnion('type', [
+/**
+ * Types with a first-class composer in the provider adapters. They build
+ * network graphs and wire VMs to subnets/security groups, so they keep a
+ * strict schema.
+ */
+export const COMPOSER_RESOURCE_TYPES = ['vpc', 'subnet', 'vm'] as const;
+
+/**
+ * Any other catalogued resource type. Keys beyond `type`/`name`/`description`
+ * are passed through to the module bank as Terraform variables, so the module's
+ * own variables.tf is the contract rather than this schema.
+ */
+const GenericResourceSchema = z
+  .object({
+    type: z
+      .string()
+      .min(1)
+      .refine(
+        (t) => !(COMPOSER_RESOURCE_TYPES as readonly string[]).includes(t),
+        (t) => ({ message: `Resource type "${t}" has a dedicated schema` })
+      ),
+    name: z.string().min(1),
+    description: z.string().optional(),
+  })
+  .passthrough();
+
+const ResourceSchema = z.union([
   VpcResourceSchema,
   SubnetResourceSchema,
   VmResourceSchema,
+  GenericResourceSchema,
 ]);
 
-// Main configuration schema
 export const GridConfigSchema = z.object({
   provider: ProviderSchema,
-  project: z.string(), // GCP project ID, AWS account ID, Azure subscription ID
+  project: z.string(),
   region: z.string().optional(),
   resources: z.array(ResourceSchema).min(1, 'At least one resource is required'),
-  metadata: z.object({
-    name: z.string().optional(),
-    description: z.string().optional(),
-    environment: z.enum(['dev', 'staging', 'prod']).optional(),
-  }).optional(),
+  metadata: z
+    .object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      environment: z.enum(['dev', 'staging', 'prod']).optional(),
+    })
+    .optional(),
 });
 
 export type GridConfig = z.infer<typeof GridConfigSchema>;
 export type Resource = z.infer<typeof ResourceSchema>;
+export type VpcResource = z.infer<typeof VpcResourceSchema>;
+export type SubnetResource = z.infer<typeof SubnetResourceSchema>;
+export type VmResource = z.infer<typeof VmResourceSchema>;
+export type GenericResource = z.infer<typeof GenericResourceSchema>;
+
+export function isVpcResource(resource: Resource): resource is VpcResource {
+  return resource.type === 'vpc';
+}
+
+export function isSubnetResource(resource: Resource): resource is SubnetResource {
+  return resource.type === 'subnet';
+}
+
+export function isVmResource(resource: Resource): resource is VmResource {
+  return resource.type === 'vm';
+}
+
+/** True when a provider composer owns this resource instead of the catalog path. */
+export function isComposerResource(resource: Resource): boolean {
+  return (COMPOSER_RESOURCE_TYPES as readonly string[]).includes(resource.type);
+}
+
+export function isGenericResource(resource: Resource): resource is GenericResource {
+  return !isComposerResource(resource);
+}
 
 /**
  * Validate Grid configuration
@@ -72,27 +124,27 @@ export function validateConfig(config: unknown): {
 } {
   try {
     const result = GridConfigSchema.safeParse(config);
-    
+
     if (!result.success) {
       return {
         valid: false,
-        errors: result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+        errors: result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
       };
     }
 
-    // Additional validation checks
     const warnings: string[] = [];
-    
-    // Check resource dependencies
-    const resourceNames = new Set(result.data.resources.map(r => r.name));
-    const referencedResources: string[] = [];
-    
-    result.data.resources.forEach(resource => {
-      if (resource.type === 'subnet' && !resourceNames.has(resource.vpc)) {
-        warnings.push(`Subnet "${resource.name}" references VPC "${resource.vpc}" which doesn't exist`);
+    const resourceNames = new Set(result.data.resources.map((r) => r.name));
+
+    result.data.resources.forEach((resource) => {
+      if (isSubnetResource(resource) && !resourceNames.has(resource.vpc)) {
+        warnings.push(
+          `Subnet "${resource.name}" references VPC "${resource.vpc}" which doesn't exist`
+        );
       }
-      if (resource.type === 'vm' && !resourceNames.has(resource.subnet)) {
-        warnings.push(`VM "${resource.name}" references subnet "${resource.subnet}" which doesn't exist`);
+      if (isVmResource(resource) && !resourceNames.has(resource.subnet)) {
+        warnings.push(
+          `VM "${resource.name}" references subnet "${resource.subnet}" which doesn't exist`
+        );
       }
     });
 
@@ -107,4 +159,3 @@ export function validateConfig(config: unknown): {
     };
   }
 }
-
