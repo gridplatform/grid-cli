@@ -3,7 +3,7 @@ import fs from 'fs-extra';
 import { GridConfig } from '../../validators/config';
 import { generateBackend } from './backend';
 import { moduleSpecsFromResources, renderCatalogResources } from './catalogResources';
-import { ModuleCopySpec, copyModulesFromBank, resolveModuleBankRoot } from './moduleBank';
+import { ModuleCopySpec, copyModulesFromBank, ensureModuleBankRoot } from './moduleBank';
 import { bootstrapProviders } from '../../providers';
 import { assertProviderCanGenerate } from '../../providers/registry';
 
@@ -41,13 +41,7 @@ export async function generateInfrastructure(
   const warnings: string[] = [];
   const region = config.region || provider.defaultRegion;
 
-  const bankRoot = resolveModuleBankRoot();
-  if (!(await fs.pathExists(bankRoot))) {
-    throw new Error(
-      `Grid Terraform module bank not found at ${bankRoot}. ` +
-        `Expected sibling repo grid-terraform, or set GRID_MODULE_BANK.`
-    );
-  }
+  const bankRoot = await ensureModuleBankRoot();
   warnings.push(`Module bank (read-only source): ${bankRoot}`);
 
   let resourceBlocks: string;
