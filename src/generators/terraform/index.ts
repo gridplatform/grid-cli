@@ -11,9 +11,9 @@ export interface GenerateOptions {
   outputDir: string;
   format: 'terraform' | 'opentofu';
   /**
-   * How to install module-bank folders into output/modules.
-   * - copy: self-contained (default for in-repo buffers / Grid exit path)
-   * - link: symlink to grid-terraform (fast scratch under /tmp)
+   * How to install bank modules into output/modules.
+   * - copy: self-contained (archive / deploy path)
+   * - link: symlink to grid-terraform (fast scratch)
    */
   moduleInstallMode?: 'link' | 'copy';
 }
@@ -25,13 +25,11 @@ export interface GenerateResult {
 }
 
 /**
- * Generate Terraform/OpenTofu from Grid JSON.
+ * Generate Terraform/OpenTofu from unit JSON into `outputDir`.
  *
- * Writes **instance** stack files (main.tf, provider.tf, …) into `outputDir`.
- * That is the deployable config under `<configRoot>/archive/…` for real repos.
- *
- * `modules/` is only a **vendored copy / link** of GRID_MODULE_BANK for exit-path
- * and apply. This function never modifies the module bank.
+ * Writes instance stack files (main.tf, provider.tf, …). For a desired-state repo
+ * that is typically `<configRoot>/archive/…`. Vendors modules/ from the bank;
+ * never modifies the bank itself.
  */
 export async function generateInfrastructure(
   config: GridConfig,

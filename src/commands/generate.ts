@@ -8,11 +8,8 @@ import { ARCHIVE_DIR, artifactDirForConfig, writeArtifactMeta } from '../config/
 import { inferConfigRootFromPath, resolveConfigRoot, toPosix } from '../inventory/store';
 
 /**
- * Register the 'generate' command
- *
- * Default output: <configRoot>/archive/<cloud>/<env>/<type>/<name>/
- * mirroring the JSON path. Pass -o for scratch (e.g. /tmp).
- * Archive writes always copy modules (Grid exit path).
+ * Register generate: emit instance Terraform under archive/ (or -o scratch).
+ * Default output mirrors the unit JSON path under archive/.
  */
 export function generateCommand(program: Command) {
   program

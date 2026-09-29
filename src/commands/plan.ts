@@ -13,7 +13,7 @@ import { inferConfigRootFromPath, resolveConfigRoot, toPosix } from '../inventor
 const execAsync = promisify(exec);
 
 /**
- * grid plan — generate (optional) + terraform plan
+ * grid plan — generate (unless --skip-generate) then terraform/tofu plan
  */
 export function planCommand(program: Command) {
   program

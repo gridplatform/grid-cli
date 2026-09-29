@@ -19,7 +19,7 @@ import { ARCHIVE_DIR } from '../config/artifacts';
 
 /**
  * grid env — list canonical envs / clone with TTL.
- * Desired-state layout: <cloud>/<env>/<infra-type>/<name>.json
+ * Unit layout: <cloud>/<env>/<infra-type>/<name>.json
  */
 export function envCommand(program: Command) {
   const env = program.command('env').description('Canonical environments and ephemeral clones');
@@ -241,7 +241,7 @@ async function copyUnitsToClone(
   const pathMap = new Map<string, string>();
   for (const rel of relPaths) {
     const parts = rel.split('/');
-    // cloud/env/type/file.json
+    // <cloud>/<env>/<type>/<file>.json
     if (parts.length < 4) continue;
     const file = parts[parts.length - 1];
     const base = file.replace(/\.json$/, '');

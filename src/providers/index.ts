@@ -1,6 +1,6 @@
 /**
- * Provider bootstrap — import once from CLI entry / generate.
- * Every registered cloud uses the same catalog generate path.
+ * Register cloud adapters once for CLI / generate.
+ * Resource generation always uses the shared catalog.
  */
 import { registerProvider } from './registry';
 import { awsProvider } from './aws';

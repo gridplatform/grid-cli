@@ -17,26 +17,22 @@ export interface DeployOptions {
 }
 
 /**
- * Deploy infrastructure using Terraform/OpenTofu
+ * Deploy with Terraform/OpenTofu: init → plan → (confirm) → apply.
  */
 export async function deployInfrastructure(options: DeployOptions): Promise<void> {
   const { outputDir, tool, autoApprove } = options;
   
-  // Verify tool is installed
   await verifyToolInstalled(tool);
 
-  // Check if output directory exists
   if (!fs.existsSync(outputDir)) {
     throw new Error(`Output directory does not exist: ${outputDir}`);
   }
 
-  // Check if Terraform files exist
   const mainTfPath = path.join(outputDir, 'main.tf');
   if (!fs.existsSync(mainTfPath)) {
     throw new Error(`Terraform files not found in ${outputDir}. Run "grid generate" first.`);
   }
 
-  // Initialize Terraform/OpenTofu
   const spinner = ora('Initializing Terraform...').start();
   try {
     await execAsync(`${tool} init`, { cwd: outputDir });
@@ -46,7 +42,6 @@ export async function deployInfrastructure(options: DeployOptions): Promise<void
     throw error;
   }
 
-  // Run terraform plan
   spinner.start('Running plan...');
   try {
     const { stdout } = await execAsync(`${tool} plan`, { cwd: outputDir });
@@ -59,7 +54,6 @@ export async function deployInfrastructure(options: DeployOptions): Promise<void
     throw error;
   }
 
-  // Ask for confirmation unless auto-approve
   if (!autoApprove) {
     const { confirm } = await inquirer.prompt([
       {
@@ -76,7 +70,6 @@ export async function deployInfrastructure(options: DeployOptions): Promise<void
     }
   }
 
-  // Apply changes
   spinner.start('Applying changes...');
   try {
     const { stdout, stderr } = await execAsync(

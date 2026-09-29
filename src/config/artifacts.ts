@@ -27,18 +27,15 @@ crash.*.log
 `;
 
 /**
- * Deployable Terraform for a Grid JSON unit (Git exit buffer).
+ * Deployable Terraform buffer for one unit JSON (committed under archive/).
  *
- * Intent (source of truth — humans edit this):
- *   <root>/aws/development/vpc/dev-demo-vpc.json
+ * Intent (humans edit):
+ *   <root>/<cloud>/<env>/<type>/<name>.json
  *
- * Instance Terraform (CLI regenerates these from JSON — NOT the module bank):
- *   <root>/archive/aws/development/vpc/dev-demo-vpc/
- *     main.tf, provider.tf, …     ← updated when JSON changes
- *     modules/…                  ← vendored COPY from GRID_MODULE_BANK (read-only source)
- *
- * Product rule: JSON → archive instance HCL. Never write into grid-terraform.
- * Same for demo-infra, grid-config, or any `grid init` / Git desired-state repo.
+ * Instance HCL (CLI regenerates; not the module bank):
+ *   <root>/archive/<cloud>/<env>/<type>/<name>/
+ *     main.tf, provider.tf, …   — rewritten from JSON
+ *     modules/…                 — vendored from GRID_MODULE_BANK (bank is read-only)
  */
 export function artifactDirForConfig(configFilePath: string, configRoot: string): string {
   const root = path.resolve(configRoot);
@@ -70,9 +67,7 @@ export async function isGeneratedArtifactDir(dir: string): Promise<boolean> {
   return fs.pathExists(path.join(dir, GENERATED_MARKER));
 }
 
-/**
- * Prepare artifact dir: marker + gitignore for state (instance tf + modules are committed).
- */
+/** Write marker + .gitignore so instance *.tf and modules/ can be committed; state stays local. */
 export async function writeArtifactMeta(
   artifactDir: string,
   opts: { configPath: string; format: string }

@@ -1,7 +1,7 @@
 import type { GridConfig } from '../validators/config';
 
 /**
- * Stable provider IDs used in grid.json `provider` field.
+ * Stable provider IDs used in unit JSON `provider` field.
  * Add new clouds here first, then register an adapter.
  */
 export type ProviderId =
@@ -40,17 +40,14 @@ export const PROVIDER_IDS: readonly ProviderId[] = [
 export type ProviderStatus = 'supported' | 'coming_soon' | 'planned';
 
 /**
- * One cloud/platform adapter.
- *
- * Generate uses the same catalog path for every provider. Adapters only supply
- * identity + the Terraform `provider` block — never cloud-specific generators.
- * See generators/terraform/README.md.
+ * Cloud adapter: identity + Terraform `provider` block only.
+ * Resource HCL always goes through the shared catalog (see generators/terraform/).
  */
 export interface ProviderAdapter {
   id: ProviderId;
   label: string;
   /**
-   * Discovery metadata for `grid providers` / UI — does NOT block generate.
+   * Discovery metadata for `grid providers` / UI — does not block generate.
    * Apply still needs module bank + credentials.
    */
   status: ProviderStatus;

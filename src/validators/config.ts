@@ -2,10 +2,8 @@ import { z } from 'zod';
 import { PROVIDER_IDS } from '../providers/types';
 
 /**
- * Grid Configuration Schema
- *
- * Defines the structure for Grid JSON configuration files.
- * `provider` accepts any registered ProviderId; generate enforces supported status.
+ * Zod schema for Grid unit JSON (<cloud>/<env>/<type>/<name>.json).
+ * `provider` is any registered ProviderId; generate enforces bank coverage.
  */
 
 const ProviderSchema = z.enum(PROVIDER_IDS as unknown as [string, ...string[]]);
@@ -41,7 +39,7 @@ const VmResourceSchema = z.object({
 
 /**
  * Types with a dedicated Zod schema (stricter than passthrough generics).
- * Still rendered through the same catalog path as every other type.
+ * Still rendered through the shared catalog path.
  */
 export const STRUCTURED_RESOURCE_TYPES = ['vpc', 'subnet', 'vm'] as const;
 
@@ -80,7 +78,7 @@ export const GridConfigSchema = z.object({
     .object({
       name: z.string().optional(),
       description: z.string().optional(),
-      // Canonical: development | staging | production (no sandbox — use env clone + TTL)
+      // Canonical envs only; temporary copies use .ephemeral/ via `grid env clone`
       environment: z
         .enum(['development', 'staging', 'production', 'dev', 'prod'])
         .optional(),
@@ -119,9 +117,7 @@ export function isGenericResource(resource: Resource): resource is GenericResour
   return !isStructuredResource(resource);
 }
 
-/**
- * Validate Grid configuration
- */
+/** Validate unit JSON against GridConfigSchema; returns errors and soft warnings. */
 export function validateConfig(config: unknown): {
   valid: boolean;
   errors?: string[];
