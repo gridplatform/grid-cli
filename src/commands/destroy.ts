@@ -80,6 +80,10 @@ export function destroyCommand(program: Command) {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
             moduleInstallMode: 'copy',
+            configRoot: options.configDir
+              ? resolveConfigRoot(options.configDir)
+              : resolved.configRoot,
+            dependencies: resolved.dependencies,
           });
         }
 

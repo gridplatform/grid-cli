@@ -5,7 +5,7 @@ import fs from 'fs-extra';
 import inquirer from 'inquirer';
 import { generateInfrastructure } from '../generators/terraform';
 import { deployInfrastructure } from '../orchestrators/deploy';
-import { loadConfigWithDependencies, collectCoveredDependsOnPaths } from '../config/resolveDependencies';
+import { loadConfigWithDependencies } from '../config/resolveDependencies';
 import {
   discoverDesiredUnits,
   inferConfigRootFromPath,
@@ -106,6 +106,8 @@ async function deploySingle(options: {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
       moduleInstallMode: underRoot || !options.output ? 'copy' : undefined,
+      configRoot: configRoot || undefined,
+      dependencies: resolved.dependencies,
     });
   }
 
@@ -160,21 +162,10 @@ async function deployReconcile(options: {
   const diff = diffConfig(desired, inventory);
   spinner.stop();
 
-  const covered = collectCoveredDependsOnPaths(desired);
-  const rawTargets = [...diff.added, ...diff.changed.map((c) => c.desired)];
-  const skipped = rawTargets.filter((t) => covered.has(t.configPath));
-  const targets = rawTargets.filter((t) => !covered.has(t.configPath));
+  const targets = [...diff.added, ...diff.changed.map((c) => c.desired)];
 
   if (targets.length === 0) {
     console.log(chalk.green('Nothing to deploy (no added/changed configs).'));
-    if (skipped.length > 0) {
-      console.log(
-        chalk.gray(
-          `\nSkipped ${skipped.length} unit(s) covered by another unit's metadata.dependsOn (network owned by leaf stack):`
-        )
-      );
-      for (const s of skipped) console.log(chalk.gray(`  • ${s.configPath}`));
-    }
     if (diff.stale.length > 0) {
       console.log(
         chalk.yellow(
@@ -188,14 +179,6 @@ async function deployReconcile(options: {
   console.log(chalk.cyan(`\nWill deploy ${targets.length} unit(s):`));
   for (const t of targets) {
     console.log(`  • ${t.configPath}`);
-  }
-  if (skipped.length > 0) {
-    console.log(
-      chalk.gray(
-        `\nSkipping ${skipped.length} unit(s) covered by metadata.dependsOn (avoid duplicate network ownership):`
-      )
-    );
-    for (const s of skipped) console.log(chalk.gray(`  • ${s.configPath}`));
   }
   if (diff.stale.length > 0) {
     console.log(
@@ -234,6 +217,8 @@ async function deployReconcile(options: {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
       moduleInstallMode: 'copy',
+      configRoot,
+      dependencies: resolved.dependencies,
     });
     await deployInfrastructure({
       config: resolved.config as never,

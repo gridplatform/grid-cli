@@ -3,26 +3,60 @@ import fs from 'fs-extra';
 import type { GridConfig, Resource } from '../validators/config';
 import { validateConfig } from '../validators/config';
 import { inferConfigRootFromPath, resolveConfigRoot, toPosix } from '../inventory/store';
+import { findProjectRoot } from '../project/marker';
+import { ARCHIVE_DIR } from './artifacts';
+
+/** One subnet declared in a dependsOn network unit (logical Grid name). */
+export interface DependencySubnet {
+  name: string;
+  vpc: string;
+  cidr?: string;
+}
+
+/** Network inventory extracted from a dependsOn unit (never merged into the leaf stack). */
+export interface DependencyNetwork {
+  vpcs: string[];
+  subnets: DependencySubnet[];
+}
+
+/**
+ * A desired-state unit this config points at via metadata.dependsOn.
+ * Leaf stacks reference these units' Terraform state — they do not own/recreate them.
+ */
+export interface ResolvedDependency {
+  /** Path relative to dependsRoot (project root), e.g. aws/development/vpc/….json */
+  relPath: string;
+  /** Absolute path to the dependency JSON */
+  absPath: string;
+  /** Absolute path to that unit's archive Terraform dir (local backend state lives here) */
+  archiveDir: string;
+  /** Safe Terraform identifier for data.terraform_remote_state.<id> */
+  remoteStateId: string;
+  config: GridConfig;
+  network: DependencyNetwork;
+}
 
 export interface ResolvedGridConfig {
   config: GridConfig;
   /** Absolute path of the primary config file */
   configPath: string;
-  /** Root used to resolve metadata.dependsOn */
+  /** Root used for archive / inventory (platform desired-state when --config-dir is set) */
   configRoot?: string;
-  /** Dependency files that were merged in */
+  /** Root used to resolve metadata.dependsOn (project root when nested under projects/<slug>/) */
+  dependsRoot?: string;
+  /** Validated dependsOn units (reference-only — resources are NOT merged into config) */
+  dependencies: ResolvedDependency[];
+  /** @deprecated Always empty — kept so older call sites compiling against mergedFrom still typecheck */
   mergedFrom: string[];
   warnings: string[];
 }
 
 /**
- * Load a Grid JSON and merge network resources from metadata.dependsOn
- * (paths relative to config root, e.g. "gcp/development/vpc/grid-development-vpc.json").
+ * Load a Grid JSON and resolve metadata.dependsOn as **references** to other units.
  *
- * Lets split vpc + vm files generate in one workspace so catalog foldInto
- * (subnet → vpc module) can see both sides of the graph.
- *
- * Complexity: O(D + R) for D dependency files and R merged resources (Sets for membership).
+ * Product rule: VPC/subnet (and any dependency unit) stay in their own workspace.
+ * Consumers (VM, SG, EKS, …) point at them by logical name; generate wires
+ * terraform_remote_state — it never copies dependency resources into the leaf stack.
  */
 export async function loadConfigWithDependencies(
   configPath: string,
@@ -34,14 +68,19 @@ export async function loadConfigWithDependencies(
   }
 
   const primary = await readGridJson(abs);
-  const validation = validateConfig(primary);
-  if (!validation.valid) {
-    throw new Error(validation.errors?.join('\n') || 'Invalid configuration');
+  // Hard schema errors first (before dependsOn); soft cross-refs rechecked after deps load.
+  const schemaCheck = validateConfig(primary);
+  if (!schemaCheck.valid) {
+    throw new Error(schemaCheck.errors?.join('\n') || 'Invalid configuration');
   }
 
-  const configRoot =
-    (options?.configDir ? resolveConfigRoot(options.configDir) : undefined) ||
-    inferConfigRootFromPath(abs);
+  const platformRoot = options?.configDir
+    ? resolveConfigRoot(options.configDir)
+    : undefined;
+  const projectRoot = findProjectRoot(path.dirname(abs));
+  const dependsRoot =
+    projectRoot || platformRoot || inferConfigRootFromPath(abs);
+  const configRoot = platformRoot || projectRoot || inferConfigRootFromPath(abs);
 
   const dependsOn = normalizeDependsOn(primary.metadata);
   if (dependsOn.length === 0) {
@@ -49,28 +88,32 @@ export async function loadConfigWithDependencies(
       config: primary,
       configPath: abs,
       configRoot,
+      dependsRoot,
+      dependencies: [],
       mergedFrom: [],
-      warnings: [...(validation.warnings || [])],
+      warnings: [...(schemaCheck.warnings || [])],
     };
   }
 
-  if (!configRoot) {
+  if (!dependsRoot || !configRoot) {
     return {
       config: primary,
       configPath: abs,
+      configRoot,
+      dependsRoot,
+      dependencies: [],
       mergedFrom: [],
       warnings: [
-        ...(validation.warnings || []),
+        ...(schemaCheck.warnings || []),
         'metadata.dependsOn is set but config root could not be inferred. ' +
-          'Pass --config-dir so dependency JSON files can be loaded.',
+          'Pass --config-dir so dependency JSON files can be resolved.',
       ],
     };
   }
 
-  const rootResolved = path.resolve(configRoot);
-  const mergedResources: Resource[] = [...primary.resources];
-  const seenNames = new Set(primary.resources.map((r) => r.name));
-  const mergedFrom: string[] = [];
+  const rootResolved = path.resolve(dependsRoot);
+  const platformResolved = path.resolve(configRoot);
+  const dependencies: ResolvedDependency[] = [];
   const queued = [...dependsOn];
   const seenDeps = new Set(dependsOn);
 
@@ -89,13 +132,17 @@ export async function loadConfigWithDependencies(
       throw new Error(`Invalid dependency ${rel}: ${depValidation.errors?.join('; ')}`);
     }
 
-    for (const r of dep.resources) {
-      if (r.type !== 'vpc' && r.type !== 'subnet') continue;
-      if (seenNames.has(r.name)) continue;
-      mergedResources.push(r);
-      seenNames.add(r.name);
-    }
-    mergedFrom.push(toPosix(path.relative(rootResolved, depAbs)));
+    const unitRel = toPosix(path.relative(platformResolved, depAbs)).replace(/\.json$/i, '');
+    const archiveDir = path.join(platformResolved, ARCHIVE_DIR, unitRel);
+
+    dependencies.push({
+      relPath: toPosix(path.relative(rootResolved, depAbs)),
+      absPath: depAbs,
+      archiveDir,
+      remoteStateId: remoteStateIdFor(rel),
+      config: dep,
+      network: extractNetwork(dep.resources),
+    });
 
     for (const n of normalizeDependsOn(dep.metadata)) {
       if (seenDeps.has(n)) continue;
@@ -104,23 +151,60 @@ export async function loadConfigWithDependencies(
     }
   }
 
-  const config: GridConfig = {
-    ...primary,
-    resources: mergedResources,
-  };
+  const knownVpcs = new Set<string>();
+  const knownSubnets = new Set<string>();
+  for (const d of dependencies) {
+    for (const v of d.network.vpcs) knownVpcs.add(v);
+    for (const s of d.network.subnets) knownSubnets.add(s.name);
+  }
+  const soft = validateConfig(primary, { knownVpcs, knownSubnets });
 
-  const post = validateConfig(config);
-  if (!post.valid) {
-    throw new Error(post.errors?.join('\n') || 'Invalid configuration after dependsOn merge');
+  const warnings = [...(soft.warnings || [])];
+  if (dependencies.length > 0) {
+    warnings.push(
+      `dependsOn (reference-only): ${dependencies.map((d) => d.relPath).join(', ')}. ` +
+        `Those units keep their own Terraform workspaces; this unit will look up vpc/subnet (and similar) via remote state — it will not recreate them.`
+    );
   }
 
-  const warnings = [...(post.warnings || [])];
-  warnings.push(
-    `Merged network resources from dependsOn: ${mergedFrom.join(', ')}. ` +
-      `This unit's workspace will manage those network resources — do not also deploy the dependsOn VPC unit separately (duplicate ownership).`
-  );
+  return {
+    config: primary,
+    configPath: abs,
+    configRoot: platformResolved,
+    dependsRoot: rootResolved,
+    dependencies,
+    mergedFrom: [],
+    warnings,
+  };
+}
 
-  return { config, configPath: abs, configRoot: rootResolved, mergedFrom, warnings };
+function extractNetwork(resources: Resource[]): DependencyNetwork {
+  const vpcs: string[] = [];
+  const subnets: DependencySubnet[] = [];
+  for (const r of resources) {
+    if (r.type === 'vpc') vpcs.push(r.name);
+    if (r.type === 'subnet') {
+      subnets.push({
+        name: r.name,
+        vpc: String((r as { vpc?: unknown }).vpc ?? ''),
+        cidr:
+          typeof (r as { cidr?: unknown }).cidr === 'string'
+            ? String((r as { cidr: string }).cidr)
+            : undefined,
+      });
+    }
+  }
+  return { vpcs, subnets };
+}
+
+function remoteStateIdFor(rel: string): string {
+  const base = toPosix(rel)
+    .replace(/\.json$/i, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  const id = `dep_${base || 'unit'}`.slice(0, 60);
+  return /^[a-zA-Z_]/.test(id) ? id : `dep_${id}`;
 }
 
 async function readGridJson(absPath: string): Promise<GridConfig> {
@@ -135,7 +219,6 @@ async function readGridJson(absPath: string): Promise<GridConfig> {
   }
 }
 
-/** Reject dependsOn paths that escape the config root (path traversal). */
 function assertInsideRoot(root: string, absPath: string, rel: string): void {
   const relative = path.relative(root, absPath);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
@@ -150,15 +233,12 @@ function normalizeDependsOn(metadata: GridConfig['metadata'] | unknown): string[
   return raw.filter((x): x is string => typeof x === 'string' && x.length > 0).map(toPosix);
 }
 
-/** Paths (relative to config root) listed in any unit's metadata.dependsOn. O(U). */
+/**
+ * @deprecated Leaf stacks no longer "cover" / own dependency units.
+ * Kept as an empty set so older reconcile callers skip nothing.
+ */
 export function collectCoveredDependsOnPaths(
-  units: Array<{ config: Record<string, unknown> }>
+  _units: Array<{ config: Record<string, unknown> }>
 ): Set<string> {
-  const covered = new Set<string>();
-  for (const u of units) {
-    for (const dep of normalizeDependsOn(u.config.metadata)) {
-      covered.add(dep);
-    }
-  }
-  return covered;
+  return new Set();
 }

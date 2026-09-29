@@ -9,17 +9,23 @@ import {
   ResourceCatalogEntry,
   lookupCatalogEntry,
 } from './resourceCatalog';
+import type { ResolvedDependency } from '../../config/resolveDependencies';
 
 /**
  * Shared catalog → HCL renderer for every cloud.
  *
  * Each catalogued type becomes a `module` block unless `foldInto` places it on a
  * parent. inputMap / omitInputs / foldInto live on the catalog entry.
+ *
+ * Cross-unit network (vpc/subnet) is never merged from dependsOn — leaf stacks
+ * bind logical names via terraform_remote_state to the dependency unit's archive.
  */
 
 export interface CatalogRenderDefaults {
   project: string;
   region: string;
+  /** Reference-only dependsOn units (remote state + name → id binding). */
+  dependencies?: ResolvedDependency[];
 }
 
 const META_KEYS = new Set(['type']);
@@ -76,18 +82,31 @@ export function renderCatalogResources(
     foldedAway.add(resource);
   }
 
-  // Folded children require their parent as a top-level resource in this config.
+  // Folded children require their parent in **this** unit JSON (VPC unit owns subnets).
+  // Cross-unit deps use remote state — never recreate the parent here.
   const topLevelKeys = new Set(
     resources.filter((r) => !foldedAway.has(r)).map((r) => parentKey(r.type, r.name))
   );
+  const depNetwork = buildDependencyNetworkIndex(defaults.dependencies || []);
   for (const [key, kids] of childrenByParent) {
     if (topLevelKeys.has(key)) continue;
+    const [parentType, parentName] = key.split(':');
+    if (parentType === 'vpc' && depNetwork.vpcOwner.has(parentName)) {
+      throw new Error(
+        `Subnet(s) ${kids.map((k) => `"${k.name}"`).join(', ')} belong with VPC "${parentName}" ` +
+          `in that VPC's own unit JSON — do not declare them again on a consumer unit. ` +
+          `On the VM/SG unit, only reference subnet/vpc by name and list the VPC unit in metadata.dependsOn.`
+      );
+    }
     const names = kids.map((k) => `"${k.name}"`).join(', ');
     throw new Error(
       `Cannot fold ${names} into missing parent ${key}. ` +
-        `Add that ${key.split(':')[0]} resource to this config (or via metadata.dependsOn).`
+        `Put the ${parentType} in the same unit JSON as its children, ` +
+        `or reference a separate network unit via metadata.dependsOn.`
     );
   }
+
+  const remoteBlocks = renderRemoteStateBlocks(defaults.dependencies || []);
 
   const blocks = resources
     .filter((r) => !foldedAway.has(r))
@@ -97,13 +116,86 @@ export function renderCatalogResources(
     })
     .filter((block) => block.trim().length > 0);
 
-  if (blocks.length === 0) {
+  if (blocks.length === 0 && !remoteBlocks) {
     throw new Error(
       'No Terraform modules were generated. Check resource types and catalog foldInto parents.'
     );
   }
 
+  return [remoteBlocks, ...blocks].filter(Boolean).join('\n\n');
+}
+
+/** Local-backend remote_state blocks for each dependsOn unit. */
+export function renderRemoteStateBlocks(dependencies: ResolvedDependency[]): string {
+  if (dependencies.length === 0) return '';
+  const blocks: string[] = [
+    '# Cross-unit references (metadata.dependsOn) — read-only remote state; do not recreate those resources here.',
+  ];
+  for (const dep of dependencies) {
+    const statePath = path.join(dep.archiveDir, 'terraform.tfstate').replace(/\\/g, '/');
+    blocks.push(`data "terraform_remote_state" "${dep.remoteStateId}" {
+  backend = "local"
+  config = {
+    path = "${statePath}"
+  }
+}`);
+  }
   return blocks.join('\n\n');
+}
+
+/**
+ * Root outputs so dependents can bind via remote state.
+ * VPC units export vpc_id + subnet_ids[grid-name].
+ */
+export function renderStackOutputs(provider: ProviderId, resources: Resource[]): string {
+  const lines: string[] = ['# Stack outputs (for dependsOn consumers via terraform_remote_state)'];
+  const foldedAway = new Set<Resource>();
+  const childrenByParent = new Map<string, Resource[]>();
+
+  for (const resource of resources) {
+    const entry = lookupCatalogEntry(provider, resource.type);
+    if (!entry?.foldInto) continue;
+    const parentName = String(
+      (resource as Record<string, unknown>)[entry.foldInto.parentKey] ?? ''
+    ).trim();
+    if (!parentName) continue;
+    const key = parentKey(entry.foldInto.parentType, parentName);
+    const list = childrenByParent.get(key) ?? [];
+    list.push(resource);
+    childrenByParent.set(key, list);
+    foldedAway.add(resource);
+  }
+
+  let any = false;
+  for (const resource of resources) {
+    if (foldedAway.has(resource)) continue;
+    if (resource.type !== 'vpc') continue;
+    any = true;
+    const mod = moduleLabel(resource);
+    const kids = childrenByParent.get(parentKey('vpc', resource.name)) ?? [];
+    lines.push(`output "vpc_id" {
+  description = "VPC id for ${resource.name}"
+  value       = module.${mod}.vpc_id
+}`);
+    lines.push(`output "public_subnet_ids" {
+  description = "Public subnet ids for ${resource.name}"
+  value       = module.${mod}.public_subnet_ids
+}`);
+    if (kids.length > 0) {
+      const entries = kids
+        .map((k, i) => `    "${k.name}" = module.${mod}.public_subnet_ids[${i}]`)
+        .join('\n');
+      lines.push(`output "subnet_ids" {
+  description = "Map of Grid subnet resource name → subnet id"
+  value = {
+${entries}
+  }
+}`);
+    }
+  }
+
+  if (!any) return '# Outputs\n';
+  return `${lines.join('\n\n')}\n`;
 }
 
 export function renderCatalogResource(
@@ -124,27 +216,24 @@ export function renderCatalogResource(
     source: `./modules/${entry.modulePath}`,
   };
 
-  for (const [key, value] of Object.entries(resource)) {
-    if (META_KEYS.has(key) || omit.has(key) || value === undefined) continue;
-    const dest = entry.inputMap?.[key] ?? key;
-    // Grid JSON may carry docs fields (e.g. description) that only some modules accept.
-    // When we know the module's variables.tf, skip anything undeclared.
-    if (declared !== null && !declared.has(dest)) continue;
-    variables[dest] = moduleInputValue(dest, value);
+  if (wants(declared, 'name', variables)) {
+    variables.name = resource.name;
+  }
+  if (wants(declared, 'project', variables)) {
+    variables.project = defaults.project;
   }
 
-  if (!omit.has('name')) {
-    const nameVar = entry.inputMap?.name ?? 'name';
-    if (variables[nameVar] === undefined && (declared === null || declared.has(nameVar))) {
-      variables[nameVar] = resource.name;
-    }
+  for (const [from, raw] of Object.entries(resource as Record<string, unknown>)) {
+    if (META_KEYS.has(from) || from === 'name' || omit.has(from)) continue;
+    const dest = entry.inputMap?.[from] ?? from;
+    if (omit.has(dest)) continue;
+    if (declared && !declared.has(dest) && dest !== 'tags') continue;
+    if (raw === undefined) continue;
+    variables[dest] = moduleInputValue(dest, raw);
   }
 
   applyFoldedChildren(variables, foldedChildren, provider, defaults);
 
-  if (wants(declared, 'project_id', variables)) {
-    variables.project_id = defaults.project;
-  }
   if (wants(declared, 'region', variables)) {
     variables.region = defaults.region;
   }
@@ -163,8 +252,7 @@ export function renderCatalogResource(
     );
   }
 
-  // Same-stack logical names → module outputs (subnet/vpc/sg). Real cloud ids pass through.
-  bindStackRefs(provider, variables, stack.length > 0 ? stack : [resource]);
+  bindStackRefs(provider, variables, stack.length > 0 ? stack : [resource], defaults.dependencies);
 
   return renderModuleCall(moduleLabel(resource), variables);
 }
@@ -177,14 +265,31 @@ function moduleInputValue(dest: string, value: unknown): HclValue {
   return toHclValue(value);
 }
 
+type DepNetIndex = {
+  vpcOwner: Map<string, ResolvedDependency>;
+  subnetOwner: Map<string, ResolvedDependency>;
+};
+
+function buildDependencyNetworkIndex(dependencies: ResolvedDependency[]): DepNetIndex {
+  const vpcOwner = new Map<string, ResolvedDependency>();
+  const subnetOwner = new Map<string, ResolvedDependency>();
+  for (const dep of dependencies) {
+    for (const v of dep.network.vpcs) vpcOwner.set(v, dep);
+    for (const s of dep.network.subnets) subnetOwner.set(s.name, dep);
+  }
+  return { vpcOwner, subnetOwner };
+}
+
 /**
- * Bind Grid resource names to Terraform module outputs within one generated stack.
- * O(R) index + O(1) lookups. No-op for non-AWS and for values that already look like cloud ids.
+ * Bind Grid resource names to Terraform expressions.
+ * Same-stack → module outputs; dependsOn → remote_state outputs.
+ * Real cloud ids (vpc-… / subnet-… / sg-…) pass through.
  */
 function bindStackRefs(
   provider: ProviderId,
   variables: Record<string, HclValue>,
-  stack: Resource[]
+  stack: Resource[],
+  dependencies?: ResolvedDependency[]
 ): void {
   if (provider !== 'aws') return;
 
@@ -198,6 +303,7 @@ function bindStackRefs(
     list.push(r);
     subnetsOf.set(vpc, list);
   }
+  const depNet = buildDependencyNetworkIndex(dependencies || []);
 
   const subnet = variables.subnet_id;
   if (typeof subnet === 'string' && !subnet.startsWith('subnet-')) {
@@ -208,13 +314,29 @@ function bindStackRefs(
       variables.subnet_id = {
         raw: `module.${moduleLabel({ type: 'vpc', name: vpc } as Resource)}.public_subnet_ids[${idx}]`,
       };
+    } else {
+      const owner = depNet.subnetOwner.get(subnet);
+      if (owner) {
+        variables.subnet_id = {
+          raw: `data.terraform_remote_state.${owner.remoteStateId}.outputs.subnet_ids["${subnet}"]`,
+        };
+      }
     }
   }
 
   const vpcId = variables.vpc_id;
   if (typeof vpcId === 'string' && !vpcId.startsWith('vpc-')) {
     const vpc = byKey.get(`vpc:${vpcId}`);
-    if (vpc) variables.vpc_id = { raw: `module.${moduleLabel(vpc)}.vpc_id` };
+    if (vpc) {
+      variables.vpc_id = { raw: `module.${moduleLabel(vpc)}.vpc_id` };
+    } else {
+      const owner = depNet.vpcOwner.get(vpcId);
+      if (owner) {
+        variables.vpc_id = {
+          raw: `data.terraform_remote_state.${owner.remoteStateId}.outputs.vpc_id`,
+        };
+      }
+    }
   }
 
   const sgs = variables.vpc_security_group_ids;
@@ -347,7 +469,6 @@ function readModuleVariableNames(modulePath: string): Set<string> | null {
   try {
     contents = fs.readFileSync(file, 'utf8');
   } catch {
-    // Module may still copy; Terraform will report missing vars at plan time.
     return null;
   }
   const names = new Set<string>();

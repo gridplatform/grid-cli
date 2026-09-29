@@ -118,7 +118,10 @@ export function isGenericResource(resource: Resource): resource is GenericResour
 }
 
 /** Validate unit JSON against GridConfigSchema; returns errors and soft warnings. */
-export function validateConfig(config: unknown): {
+export function validateConfig(
+  config: unknown,
+  opts?: { knownVpcs?: Set<string>; knownSubnets?: Set<string> }
+): {
   valid: boolean;
   errors?: string[];
   warnings?: string[];
@@ -135,16 +138,26 @@ export function validateConfig(config: unknown): {
 
     const warnings: string[] = [];
     const resourceNames = new Set(result.data.resources.map((r) => r.name));
+    const vpcs = opts?.knownVpcs ?? new Set<string>();
+    const subnets = opts?.knownSubnets ?? new Set<string>();
 
     result.data.resources.forEach((resource) => {
-      if (isSubnetResource(resource) && !resourceNames.has(resource.vpc)) {
+      if (
+        isSubnetResource(resource) &&
+        !resourceNames.has(resource.vpc) &&
+        !vpcs.has(resource.vpc)
+      ) {
         warnings.push(
           `Subnet "${resource.name}" references VPC "${resource.vpc}" which doesn't exist`
         );
       }
-      if (isVmResource(resource) && !resourceNames.has(resource.subnet)) {
+      if (
+        isVmResource(resource) &&
+        !resourceNames.has(resource.subnet) &&
+        !subnets.has(resource.subnet)
+      ) {
         warnings.push(
-          `VM "${resource.name}" references subnet "${resource.subnet}" which doesn't exist`
+          `VM "${resource.name}" references subnet "${resource.subnet}" which doesn't exist in this unit or metadata.dependsOn`
         );
       }
     });

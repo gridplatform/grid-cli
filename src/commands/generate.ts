@@ -74,6 +74,8 @@ export function generateCommand(program: Command) {
           outputDir,
           format: options.format as 'terraform' | 'opentofu',
           moduleInstallMode: inArchive ? 'copy' : undefined,
+          configRoot: configRoot || undefined,
+          dependencies: resolved.dependencies,
         });
 
         spinner.succeed(

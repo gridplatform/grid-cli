@@ -2,10 +2,15 @@ import path from 'path';
 import fs from 'fs-extra';
 import { GridConfig } from '../../validators/config';
 import { generateBackend } from './backend';
-import { moduleSpecsFromResources, renderCatalogResources } from './catalogResources';
+import {
+  moduleSpecsFromResources,
+  renderCatalogResources,
+  renderStackOutputs,
+} from './catalogResources';
 import { ModuleCopySpec, copyModulesFromBank, ensureModuleBankRoot } from './moduleBank';
 import { bootstrapProviders } from '../../providers';
 import { assertProviderCanGenerate } from '../../providers/registry';
+import type { ResolvedDependency } from '../../config/resolveDependencies';
 
 export interface GenerateOptions {
   outputDir: string;
@@ -16,6 +21,10 @@ export interface GenerateOptions {
    * - link: symlink to grid-terraform (fast scratch)
    */
   moduleInstallMode?: 'link' | 'copy';
+  /** Platform desired-state root (for dependsOn remote-state paths). */
+  configRoot?: string;
+  /** Reference-only dependsOn units — never merged into this stack's resources. */
+  dependencies?: ResolvedDependency[];
 }
 
 export interface GenerateResult {
@@ -40,6 +49,7 @@ export async function generateInfrastructure(
 
   const warnings: string[] = [];
   const region = config.region || provider.defaultRegion;
+  const dependencies = options.dependencies || [];
 
   const bankRoot = await ensureModuleBankRoot();
   warnings.push(`Module bank (read-only source): ${bankRoot}`);
@@ -49,6 +59,7 @@ export async function generateInfrastructure(
     resourceBlocks = renderCatalogResources(provider.id, config.resources, {
       project: config.project,
       region,
+      dependencies,
     });
   } catch (error) {
     throw new Error(
@@ -59,10 +70,10 @@ export async function generateInfrastructure(
   }
 
   const specs = dedupeSpecs(moduleSpecsFromResources(provider.id, config.resources));
+  const outputsBody = renderStackOutputs(provider.id, config.resources);
 
   await fs.ensureDir(options.outputDir);
   const modulesTarget = path.join(options.outputDir, 'modules');
-  // Refresh vendored modules from bank — never the reverse.
   await fs.emptyDir(modulesTarget);
 
   const header = `# Instance Terraform — regenerated from Grid JSON (do not treat as the module bank).
@@ -90,7 +101,7 @@ export async function generateInfrastructure(
     fs.writeFile(mainTfPath, `${header}${resourceBlocks}\n`),
     fs.writeFile(providerTfPath, provider.renderProviderBlock(config)),
     fs.writeFile(backendTfPath, generateBackend(config)),
-    fs.writeFile(outputsTfPath, '# Outputs\n'),
+    fs.writeFile(outputsTfPath, outputsBody),
     fs.writeFile(variablesTfPath, renderVariables(config, region)),
   ]);
 
@@ -101,6 +112,11 @@ export async function generateInfrastructure(
   );
   if (install.mode === 'link') {
     warnings.push('Modules are symlinked (fast). Archive/deploy uses copy by default.');
+  }
+  if (dependencies.length > 0) {
+    warnings.push(
+      `Wired ${dependencies.length} dependsOn unit(s) via terraform_remote_state (reference only).`
+    );
   }
 
   const files = [mainTfPath, providerTfPath, backendTfPath, outputsTfPath, variablesTfPath];
