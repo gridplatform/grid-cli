@@ -1,169 +1,115 @@
 # Grid CLI
 
-![Grid Banner](readme-assets/banner.png)
+Command-line engine for Grid: turn `grid.json` into Terraform/OpenTofu using the
+**grid-terraform** module bank, then optionally apply.
 
-> **Command-line interface for Grid Platform** - Infrastructure Orchestration Tool
+grid-core calls this CLI on deploy (`grid generate`). You can also run it alone.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js&logoColor=white)](https://nodejs.org/)
+## Where Terraform modules live
 
-## 🎯 Purpose
+**Not vendored in this repo.** Modules are copied at generate time from sibling
+`../grid-terraform` (or `GRID_MODULE_BANK`). The `templates/terraform/` folder
+is intentionally empty of modules — see [templates/terraform/README.md](templates/terraform/README.md).
 
-Grid CLI is the command-line interface for the Grid Infrastructure Orchestration Platform. It generates standard Terraform/OpenTofu files from simple JSON configurations and orchestrates deployments using your existing tools.
+## How generate works
 
-## ✨ Key Features
+1. Validate `grid.json` (open schema: any catalog type + passthrough fields).
+2. Look up each resource `type` in the CLI resource catalog → `modulePath`.
+3. Copy that folder from the module bank into `generated/modules/`.
+4. Emit a `module` block; request fields become Terraform variables.
 
-- **JSON → Terraform/OpenTofu** - Generate standard IaC files from simple JSON configs
-- **Multi-Cloud Support** - Deploy to GCP, AWS, and Azure (GCP in v0.1.0)
-- **CLI-First Design** - Fast, scriptable, and flexible
-- **Zero Vendor Lock-in** - Generated files work independently
-- **Deployment Orchestration** - Automates Terraform/OpenTofu workflows
+**Convenience only on AWS/GCP:** `vpc` / `subnet` / `vm` still use dedicated
+composers that wire a small network graph. Every other type (and every type on
+other clouds) uses the catalog path.
 
-## 🚀 Quick Start
+## Who can deploy what (by design)
 
-### Installation
+| Path | Feature flags | What you need |
+|------|---------------|---------------|
+| **Console (UI)** | Yes — hides / does not send off types | Flag `true` in `grid-ui` `featureFlags.ts` |
+| **HTTP API (grid-core)** | No | Correct `POST /deployments` body + working CLI/bank/creds |
+| **CLI** | No | Valid `grid.json` + module in grid-terraform + cloud/provider creds |
+
+Someone who knows the API body can deploy a type the console hides. That is intentional.
+
+## Quick start
 
 ```bash
-# Clone the repository
-git clone https://github.com/gridplatform/grid-cli.git
 cd grid-cli
-
-# Install dependencies
 npm install
-
-# Build the project
 npm run build
 
-# Link globally (optional)
-npm link
+# Sibling module bank required (or set GRID_MODULE_BANK)
+grid generate --config examples/simple-vpc-vm.json --output ./generated --format terraform
+grid validate --config examples/aws-s3-bucket.json
 ```
 
-### Basic Usage
+Canonical demos (by environment) and a no-apply smoke script live in
+[`../demo-infra`](../demo-infra/README.md). Step-by-step AWS/GCP plan & deploy:
+[`../docs/CLI_AWS_GCP.md`](../docs/CLI_AWS_GCP.md). Product design for Admin /
+environments / approvals (website, later): [`../docs/ADMIN_RBAC.md`](../docs/ADMIN_RBAC.md).
 
-```bash
-# Generate Terraform files from config
-grid generate --config grid.json
-
-# Deploy infrastructure
-grid deploy --config grid.json
-
-# Validate configuration
-grid validate --config grid.json
-
-# Check deployment status
-grid status
-```
-
-## 📋 Configuration Format
-
-Create a `grid.json` file:
+## Example config
 
 ```json
 {
-  "provider": "gcp",
-  "project": "my-gcp-project",
-  "region": "us-central1",
+  "provider": "aws",
+  "project": "demo",
+  "region": "ap-south-1",
   "resources": [
     {
-      "type": "vpc",
-      "name": "production-vpc",
-      "cidr": "10.0.0.0/16"
-    },
-    {
-      "type": "subnet",
-      "name": "production-subnet",
-      "vpc": "production-vpc",
-      "cidr": "10.0.1.0/24"
-    },
-    {
-      "type": "vm",
-      "name": "app-server",
-      "machineType": "e2-standard-2",
-      "subnet": "production-subnet",
-      "zone": "us-central1-a"
+      "type": "s3",
+      "name": "logs",
+      "bucket": "my-unique-grid-logs-bucket"
     }
   ]
 }
 ```
 
-## 📚 Commands
+`type` must exist in the catalog for that provider. Extra keys must match the
+module’s `variables.tf` in grid-terraform.
 
-### `grid generate`
+## Commands
 
-Generate Terraform/OpenTofu files from configuration:
+| Command | Purpose |
+|---------|---------|
+| `grid generate` | JSON → Terraform/OpenTofu under `--output` |
+| `grid plan` | generate + `terraform plan` (preview create/change/destroy) |
+| `grid deploy` | generate + init/plan/apply (converge); updates local inventory when under a config root |
+| `grid deploy --config-dir … --reconcile` | apply **added + changed** units only (never destroys stale) |
+| `grid destroy` | `terraform destroy` for a workspace (+ inventory cleanup) |
+| `grid validate` | schema check |
+| `grid status` | inspect a generated workspace |
+| `grid status --config-dir …` | diff desired JSON vs inventory: added / changed / unchanged / **stale** |
+| `grid prune --config-dir …` | list stale units (JSON deleted); suggest destroy |
+| `grid prune --config-dir … --destroy` | confirm, then destroy selected stale workspaces |
+| `grid providers` | list registered cloud adapters |
 
-```bash
-grid generate --config grid.json --output ./generated
-```
+### Desired-state root (`grid-config`)
 
-Options:
-- `-c, --config <path>` - Path to Grid configuration file (default: `grid.json`)
-- `-o, --output <dir>` - Output directory (default: `./generated`)
-- `--format <format>` - Output format: `terraform` or `opentofu` (default: `opentofu`)
-
-### `grid deploy`
-
-Generate files and deploy infrastructure:
-
-```bash
-grid deploy --config grid.json --auto-approve
-```
-
-Options:
-- `-c, --config <path>` - Path to Grid configuration file
-- `-o, --output <dir>` - Output directory
-- `--format <format>` - IaC tool: `terraform` or `opentofu`
-- `--auto-approve` - Skip confirmation prompt
-- `--skip-generate` - Use existing generated files
-
-### `grid validate`
-
-Validate configuration file:
+`grid-config` (or any tree of `*.json` Grid configs) is the source of truth.
 
 ```bash
-grid validate --config grid.json
+# See what changed / what is stale
+grid status --config-dir ../grid-config
+
+# Apply new/edited JSON only
+grid deploy --config-dir ../grid-config --reconcile
+
+# JSON deleted → listed as stale; destroy only after confirmation
+grid prune --config-dir ../grid-config
+grid prune --config-dir ../grid-config --destroy
 ```
 
-### `grid status`
+Inventory + workspaces live under `<config-dir>/.grid/` (gitignored automatically).
 
-Check deployment status:
+## Env
 
-```bash
-grid status --output ./generated
-```
+| Variable | Purpose |
+|----------|---------|
+| `GRID_MODULE_BANK` | Absolute path to grid-terraform (optional) |
+| `GRID_CONFIG_ROOT` | Default desired-state root for `--config-dir` resolution |
 
-## 🏗️ Supported Resources (v0.1.0)
+## License
 
-**GCP:**
-- ✅ VPC (Google Compute Network)
-- ✅ Subnet (Google Compute Subnetwork)
-- ✅ VM (Google Compute Instance)
-
-**Coming in v0.2.0:**
-- 🔜 Load Balancer
-- 🔜 Storage Bucket
-- 🔜 Managed Database (Cloud SQL)
-
-**Coming in v0.3.0:**
-- 🔜 AWS support
-- 🔜 Azure support
-
-## 📖 Documentation
-
-- **📖 [Full Documentation](https://github.com/gridplatform/grid-docs)** - Complete CLI reference
-- **💬 [Discord Community](https://discord.gg/gridplatform)** - Get help and connect
-- **🐛 [Report Issues](https://github.com/gridplatform/grid-cli/issues)** - Found a bug?
-
-## 🤝 Contributing
-
-We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-**Built with ❤️ by the Grid Platform team**
-
+MIT — see [LICENSE](LICENSE).

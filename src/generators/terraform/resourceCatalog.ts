@@ -1,32 +1,72 @@
 /**
- * Catalog of Grid resource types → grid-terraform modules.
+ * CATALOG data: Grid resource type → grid-terraform modulePath.
+ *
+ * Used by catalogResources.ts for **every** cloud the same way.
+ * Add new types here + a module under grid-terraform/<cloud>/….
+ *
+ * Optional `foldInto` / `inputMap` / `omitInputs` describe how JSON maps onto
+ * a bank module — still one shared renderer, not per-cloud generator files.
  *
  * Integrity rule: every modulePath MUST have main.tf under grid-terraform/.
  * Verify: node scripts/verify-catalog-bank.js
- *
- * AI/ML verified against:
- * - AWS AI services page (Bedrock, SageMaker AI, purpose-built APIs)
- * - Google Cloud AI products (Vertex / Agent Platform, Document AI, speech/vision APIs)
- * - Azure Foundry Tools + Azure OpenAI + Azure ML + AI Search
  */
 
 import type { ProviderId } from '../../providers/types';
 
 export type CloudProvider = ProviderId;
 
+/** Child resource folded into a parent module input (e.g. subnet → vpc.subnets). */
+export interface CatalogFoldInto {
+  parentType: string;
+  /** Field on the child that names the parent resource (e.g. "vpc") */
+  parentKey: string;
+  /** Module variable on the parent to populate */
+  variable: string;
+  /** object = list(object{…}); string = list of one scalar field */
+  listMode: 'object' | 'string';
+  /** listMode=object: map child JSON fields → object keys */
+  itemMap?: Record<string, string>;
+  /** listMode=string: which child field becomes each list element */
+  stringField?: string;
+}
+
 export interface ResourceCatalogEntry {
   type: string;
   label: string;
   modulePath: string;
   status: 'supported' | 'planned' | 'coming_soon';
+  /** Remap Grid JSON keys → module variable names */
+  inputMap?: Record<string, string>;
+  /** Grid JSON keys not passed through to the module */
+  omitInputs?: string[];
+  /** When set, this type is not emitted alone — folded into the parent module */
+  foldInto?: CatalogFoldInto;
 }
 
 export const AWS_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'VPC', modulePath: 'aws/vpc', status: 'supported' },
-  { type: 'subnet', label: 'Subnet (folded into VPC)', modulePath: 'aws/vpc', status: 'supported' },
-  { type: 'vm', label: 'EC2 instance', modulePath: 'aws/ec2-instance', status: 'supported' },
+  {
+    type: 'vpc',
+    label: 'VPC',
+    modulePath: 'aws/vpc',
+    status: 'supported',
+    omitInputs: [],
+  },
+  {
+    type: 'subnet',
+    label: 'Subnet (folded into VPC)',
+    modulePath: 'aws/vpc',
+    status: 'supported',
+    foldInto: {
+      parentType: 'vpc',
+      parentKey: 'vpc',
+      variable: 'public_subnets',
+      listMode: 'string',
+      stringField: 'cidr',
+    },
+  },
+  { type: 'vm', label: 'EC2 instance', modulePath: 'aws/ec2-instance', status: 'supported', inputMap: { machineType: 'instance_type', subnet: 'subnet_id', image: 'ami', tags: 'tags' } },
   { type: 'security-group', label: 'Security group', modulePath: 'aws/security-group', status: 'supported' },
-  { type: 's3', label: 'S3 bucket', modulePath: 'aws/s3-bucket', status: 'planned' },
+  { type: 's3', label: 'S3 bucket', modulePath: 'aws/s3-bucket', status: 'supported' },
   { type: 'rds', label: 'RDS', modulePath: 'aws/rds', status: 'planned' },
   { type: 'eks', label: 'EKS', modulePath: 'aws/eks', status: 'planned' },
   { type: 'lambda', label: 'Lambda', modulePath: 'aws/lambda', status: 'planned' },
@@ -144,7 +184,6 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'codeartifact', label: 'Codeartifact', modulePath: 'aws/codeartifact', status: 'planned' },
   { type: 'codecommit', label: 'Codecommit', modulePath: 'aws/codecommit', status: 'planned' },
   { type: 'codestar-connections', label: 'Codestar Connections', modulePath: 'aws/codestar-connections', status: 'planned' },
-  { type: 'comprehend', label: 'Comprehend', modulePath: 'aws/comprehend', status: 'planned' },
   { type: 'connect', label: 'Connect', modulePath: 'aws/connect', status: 'planned' },
   { type: 'control-tower', label: 'Control Tower', modulePath: 'aws/control-tower', status: 'planned' },
   { type: 'datasync', label: 'Datasync', modulePath: 'aws/datasync', status: 'planned' },
@@ -165,8 +204,6 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'fault-injection-simulator', label: 'Fault Injection Simulator', modulePath: 'aws/fault-injection-simulator', status: 'planned' },
   { type: 'finspace', label: 'Finspace', modulePath: 'aws/finspace', status: 'planned' },
   { type: 'firewall-manager', label: 'Firewall Manager', modulePath: 'aws/firewall-manager', status: 'planned' },
-  { type: 'forecast', label: 'Forecast', modulePath: 'aws/forecast', status: 'planned' },
-  { type: 'fraud-detector', label: 'Fraud Detector', modulePath: 'aws/fraud-detector', status: 'planned' },
   { type: 'gamelift', label: 'Gamelift', modulePath: 'aws/gamelift', status: 'planned' },
   { type: 'glacier', label: 'Glacier', modulePath: 'aws/glacier', status: 'planned' },
   { type: 'glue-crawler', label: 'Glue Crawler', modulePath: 'aws/glue-crawler', status: 'planned' },
@@ -185,7 +222,6 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'lakeformation', label: 'Lakeformation', modulePath: 'aws/lakeformation', status: 'planned' },
   { type: 'lightsail', label: 'Lightsail', modulePath: 'aws/lightsail', status: 'planned' },
   { type: 'location-service', label: 'Location Service', modulePath: 'aws/location-service', status: 'planned' },
-  { type: 'lookout-metrics', label: 'Lookout Metrics', modulePath: 'aws/lookout-metrics', status: 'planned' },
   { type: 'mainframe-modernization', label: 'Mainframe Modernization', modulePath: 'aws/mainframe-modernization', status: 'planned' },
   { type: 'managed-blockchain', label: 'Managed Blockchain', modulePath: 'aws/managed-blockchain', status: 'planned' },
   { type: 'managed-grafana', label: 'Managed Grafana', modulePath: 'aws/managed-grafana', status: 'planned' },
@@ -200,20 +236,16 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'outposts', label: 'Outposts', modulePath: 'aws/outposts', status: 'planned' },
   { type: 'parallelcluster', label: 'Parallelcluster', modulePath: 'aws/parallelcluster', status: 'planned' },
   { type: 'payment-cryptography', label: 'Payment Cryptography', modulePath: 'aws/payment-cryptography', status: 'planned' },
-  { type: 'personalize', label: 'Personalize', modulePath: 'aws/personalize', status: 'planned' },
   { type: 'pinpoint', label: 'Pinpoint', modulePath: 'aws/pinpoint', status: 'planned' },
   { type: 'pipes', label: 'Pipes', modulePath: 'aws/pipes', status: 'planned' },
-  { type: 'polly', label: 'Polly', modulePath: 'aws/polly', status: 'planned' },
   { type: 'private-ca', label: 'Private Ca', modulePath: 'aws/private-ca', status: 'planned' },
   { type: 'proton', label: 'Proton', modulePath: 'aws/proton', status: 'planned' },
-  { type: 'q-business', label: 'Q Business', modulePath: 'aws/q-business', status: 'planned' },
   { type: 'quicksight', label: 'Quicksight', modulePath: 'aws/quicksight', status: 'planned' },
   { type: 'ram', label: 'Ram', modulePath: 'aws/ram', status: 'planned' },
   { type: 'rds-proxy', label: 'Rds Proxy', modulePath: 'aws/rds-proxy', status: 'planned' },
   { type: 'redshift-serverless', label: 'Redshift Serverless', modulePath: 'aws/redshift-serverless', status: 'planned' },
   { type: 'refactor-spaces', label: 'Refactor Spaces', modulePath: 'aws/refactor-spaces', status: 'planned' },
   { type: 'registry', label: 'Registry', modulePath: 'aws/registry', status: 'planned' },
-  { type: 'rekognition', label: 'Rekognition', modulePath: 'aws/rekognition', status: 'planned' },
   { type: 'resilience-hub', label: 'Resilience Hub', modulePath: 'aws/resilience-hub', status: 'planned' },
   { type: 'route53-resolver', label: 'Route53 Resolver', modulePath: 'aws/route53-resolver', status: 'planned' },
   { type: 's3-access-point', label: 'S3 Access Point', modulePath: 'aws/s3-access-point', status: 'planned' },
@@ -224,10 +256,7 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'ses', label: 'Ses', modulePath: 'aws/ses', status: 'planned' },
   { type: 'snowball', label: 'Snowball', modulePath: 'aws/snowball', status: 'planned' },
   { type: 'storage-gateway', label: 'Storage Gateway', modulePath: 'aws/storage-gateway', status: 'planned' },
-  { type: 'textract', label: 'Textract', modulePath: 'aws/textract', status: 'planned' },
-  { type: 'transcribe', label: 'Transcribe', modulePath: 'aws/transcribe', status: 'planned' },
   { type: 'transfer-server', label: 'Transfer Server', modulePath: 'aws/transfer-server', status: 'planned' },
-  { type: 'translate', label: 'Translate', modulePath: 'aws/translate', status: 'planned' },
   { type: 'trusted-advisor', label: 'Trusted Advisor', modulePath: 'aws/trusted-advisor', status: 'planned' },
   { type: 'verified-access', label: 'Verified Access', modulePath: 'aws/verified-access', status: 'planned' },
   { type: 'verified-permissions', label: 'Verified Permissions', modulePath: 'aws/verified-permissions', status: 'planned' },
@@ -270,14 +299,52 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const GCP_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'VPC network (+ subnets, firewall, routes, peering, PSA)', modulePath: 'gcp/network', status: 'supported' },
-  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'gcp/network', status: 'supported' },
+  {
+    type: 'vpc',
+    label: 'VPC network (+ subnets, firewall, routes, peering, PSA)',
+    modulePath: 'gcp/network',
+    status: 'supported',
+    inputMap: { name: 'network_name' },
+    omitInputs: ['cidr'],
+  },
+  {
+    type: 'subnet',
+    label: 'Subnet (folded into network)',
+    modulePath: 'gcp/network',
+    status: 'supported',
+    foldInto: {
+      parentType: 'vpc',
+      parentKey: 'vpc',
+      variable: 'subnets',
+      listMode: 'object',
+      itemMap: {
+        name: 'subnet_name',
+        cidr: 'subnet_ip',
+        region: 'subnet_region',
+        description: 'description',
+      },
+    },
+  },
   { type: 'firewall', label: 'Firewall rules (folded into network)', modulePath: 'gcp/network', status: 'planned' },
   { type: 'peering', label: 'VPC peering (folded into network)', modulePath: 'gcp/network', status: 'planned' },
   { type: 'route', label: 'Custom routes (folded into network)', modulePath: 'gcp/network', status: 'planned' },
   { type: 'cloud-nat', label: 'Cloud NAT', modulePath: 'gcp/cloud-nat', status: 'planned' },
   { type: 'vpc-access-connector', label: 'Serverless VPC Access connector', modulePath: 'gcp/vpc-access-connector', status: 'planned' },
-  { type: 'vm', label: 'Compute Engine VM', modulePath: 'gcp/compute-engine-instance', status: 'supported' },
+  {
+    type: 'vm',
+    label: 'Compute Engine VM',
+    modulePath: 'gcp/compute-engine-instance',
+    status: 'supported',
+    inputMap: {
+      name: 'instance_name',
+      machineType: 'machine_type',
+      diskSize: 'boot_disk_size_gb',
+      diskType: 'boot_disk_type',
+      image: 'gcp_image',
+      subnet: 'subnetwork',
+      tags: 'network_tags',
+    },
+  },
   { type: 'gke', label: 'GKE cluster + node pools', modulePath: 'gcp/kubernetes-engine', status: 'planned' },
   { type: 'cloud-run', label: 'Cloud Run (Gen 2)', modulePath: 'gcp/cloud-run', status: 'planned' },
   { type: 'cloud-function', label: 'Cloud Function (Gen 1)', modulePath: 'gcp/cloud-function', status: 'planned' },
@@ -285,7 +352,7 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
   { type: 'cloud-sql-mysql', label: 'Cloud SQL MySQL', modulePath: 'gcp/cloud-sql-mysql', status: 'planned' },
   { type: 'cloud-sql-postgres', label: 'Cloud SQL PostgreSQL', modulePath: 'gcp/cloud-sql-postgres', status: 'planned' },
   { type: 'cloud-sql-sqlserver', label: 'Cloud SQL SQL Server', modulePath: 'gcp/cloud-sql-sqlserver', status: 'planned' },
-  { type: 'gcs', label: 'Cloud Storage', modulePath: 'gcp/cloud-storage', status: 'planned' },
+  { type: 'gcs', label: 'Cloud Storage', modulePath: 'gcp/cloud-storage', status: 'supported' },
   { type: 'memorystore', label: 'Memorystore Redis', modulePath: 'gcp/memorystore-redis', status: 'planned' },
   { type: 'bigquery', label: 'BigQuery (+ BQML / vector search via SQL)', modulePath: 'gcp/bigquery', status: 'planned' },
   { type: 'pubsub', label: 'Pub/Sub', modulePath: 'gcp/pubsub', status: 'planned' },
@@ -424,8 +491,29 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const AZURE_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'Virtual network', modulePath: 'azure/network', status: 'coming_soon' },
-  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'azure/network', status: 'coming_soon' },
+  {
+    type: 'vpc',
+    label: 'Virtual network',
+    modulePath: 'azure/network',
+    status: 'coming_soon',
+  },
+  {
+    type: 'subnet',
+    label: 'Subnet (folded into network)',
+    modulePath: 'azure/network',
+    status: 'coming_soon',
+    foldInto: {
+      parentType: 'vpc',
+      parentKey: 'vpc',
+      variable: 'subnets',
+      listMode: 'object',
+      itemMap: {
+        name: 'name',
+        cidr: 'address_prefix',
+        description: 'description',
+      },
+    },
+  },
   { type: 'vm', label: 'Virtual machine', modulePath: 'azure/virtual-machine', status: 'coming_soon' },
   { type: 'aks', label: 'AKS', modulePath: 'azure/aks', status: 'coming_soon' },
   { type: 'postgresql', label: 'PostgreSQL Flexible Server', modulePath: 'azure/postgresql', status: 'coming_soon' },
@@ -1348,16 +1436,23 @@ export function catalogFor(provider: ProviderId): ResourceCatalogEntry[] {
 }
 
 /**
- * Find the module bank entry backing a resource type, or null when the provider
- * has no module for it. Generate uses this to build module blocks for every
- * catalogued type instead of only the hand-written composers.
+ * Find the module bank entry for a resource type, or null if missing.
+ * O(1) after first lookup per provider (indexed by lowercased type).
  */
+const catalogByProviderType = new Map<string, Map<string, ResourceCatalogEntry>>();
+
 export function lookupCatalogEntry(
   provider: ProviderId | string,
   type: string
 ): ResourceCatalogEntry | null {
-  const entries = CATALOGS[provider as ProviderId];
-  if (!entries) return null;
-  const needle = type.trim().toLowerCase();
-  return entries.find((entry) => entry.type.toLowerCase() === needle) ?? null;
+  const pid = provider as ProviderId;
+  let byType = catalogByProviderType.get(pid);
+  if (!byType) {
+    byType = new Map();
+    for (const entry of CATALOGS[pid] ?? []) {
+      byType.set(entry.type.toLowerCase(), entry);
+    }
+    catalogByProviderType.set(pid, byType);
+  }
+  return byType.get(type.trim().toLowerCase()) ?? null;
 }

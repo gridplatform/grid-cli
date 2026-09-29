@@ -40,11 +40,10 @@ const VmResourceSchema = z.object({
 });
 
 /**
- * Types with a first-class composer in the provider adapters. They build
- * network graphs and wire VMs to subnets/security groups, so they keep a
- * strict schema.
+ * Types with a dedicated Zod schema (stricter than passthrough generics).
+ * Still rendered through the same catalog path as every other type.
  */
-export const COMPOSER_RESOURCE_TYPES = ['vpc', 'subnet', 'vm'] as const;
+export const STRUCTURED_RESOURCE_TYPES = ['vpc', 'subnet', 'vm'] as const;
 
 /**
  * Any other catalogued resource type. Keys beyond `type`/`name`/`description`
@@ -57,7 +56,7 @@ const GenericResourceSchema = z
       .string()
       .min(1)
       .refine(
-        (t) => !(COMPOSER_RESOURCE_TYPES as readonly string[]).includes(t),
+        (t) => !(STRUCTURED_RESOURCE_TYPES as readonly string[]).includes(t),
         (t) => ({ message: `Resource type "${t}" has a dedicated schema` })
       ),
     name: z.string().min(1),
@@ -81,8 +80,15 @@ export const GridConfigSchema = z.object({
     .object({
       name: z.string().optional(),
       description: z.string().optional(),
-      environment: z.enum(['dev', 'staging', 'prod']).optional(),
+      // Canonical: development | sandbox | staging | production
+      // Aliases kept for older samples: dev → development, prod → production
+      environment: z
+        .enum(['development', 'sandbox', 'staging', 'production', 'dev', 'prod'])
+        .optional(),
+      /** Optional service account email (e.g. GCP VMs) — passed via metadata or env */
+      serviceAccountEmail: z.string().email().or(z.literal('REPLACE_WITH_SA_EMAIL')).optional(),
     })
+    .passthrough()
     .optional(),
 });
 
@@ -105,13 +111,13 @@ export function isVmResource(resource: Resource): resource is VmResource {
   return resource.type === 'vm';
 }
 
-/** True when a provider composer owns this resource instead of the catalog path. */
-export function isComposerResource(resource: Resource): boolean {
-  return (COMPOSER_RESOURCE_TYPES as readonly string[]).includes(resource.type);
+/** True when the resource uses a dedicated Zod schema (vpc/subnet/vm). */
+export function isStructuredResource(resource: Resource): boolean {
+  return (STRUCTURED_RESOURCE_TYPES as readonly string[]).includes(resource.type);
 }
 
 export function isGenericResource(resource: Resource): resource is GenericResource {
-  return !isComposerResource(resource);
+  return !isStructuredResource(resource);
 }
 
 /**

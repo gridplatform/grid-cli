@@ -33,7 +33,8 @@
   "metadata": {
     "name": "simple-vpc-vm",
     "description": "Simple example with VPC, subnet, and VM",
-    "environment": "dev"
+    "environment": "development",
+    "serviceAccountEmail": "REPLACE_WITH_SA_EMAIL"
   }
 }
 

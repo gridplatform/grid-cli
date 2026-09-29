@@ -1,9 +1,8 @@
 import type { GridConfig } from '../validators/config';
-import type { ModuleCopySpec } from '../generators/terraform/moduleBank';
 
 /**
  * Stable provider IDs used in grid.json `provider` field.
- * Add new clouds here first, then implement an adapter when ready.
+ * Add new clouds here first, then register an adapter.
  */
 export type ProviderId =
   | 'aws'
@@ -42,24 +41,22 @@ export type ProviderStatus = 'supported' | 'coming_soon' | 'planned';
 
 /**
  * One cloud/platform adapter.
- * Generate pipeline only talks to this interface — never to cloud-specific files directly.
+ *
+ * Generate uses the same catalog path for every provider. Adapters only supply
+ * identity + the Terraform `provider` block — never cloud-specific generators.
+ * See generators/terraform/README.md.
  */
 export interface ProviderAdapter {
   id: ProviderId;
-  /** Display name */
   label: string;
+  /**
+   * Discovery metadata for `grid providers` / UI — does NOT block generate.
+   * Apply still needs module bank + credentials.
+   */
   status: ProviderStatus;
-  /** Default region/zone hint for demos */
   defaultRegion: string;
   /** Folder under grid-terraform (e.g. "aws") */
   moduleRoot: string;
-  /** Modules copied for a Day-1 generate of this provider */
-  moduleSpecsForGenerate: ModuleCopySpec[];
-  renderResources(config: GridConfig, region: string): string;
-  renderOutputs(config: GridConfig): string;
   renderProviderBlock(config: GridConfig): string;
-  /**
-   * Optional note shown when status !== supported
-   */
   statusMessage?: string;
 }

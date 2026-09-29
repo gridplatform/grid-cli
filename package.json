@@ -4,12 +4,13 @@
   "description": "Grid Platform CLI - Command-line interface for Infrastructure Orchestration",
   "main": "dist/index.js",
   "bin": {
-    "grid": "./dist/index.js"
+    "grid": "./bin/grid.js"
   },
   "scripts": {
+    "grid": "node ./bin/grid.js",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node ./bin/grid.js",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
@@ -41,7 +42,6 @@
   "dependencies": {
     "commander": "^11.1.0",
     "zod": "^3.22.4",
-    "handlebars": "^4.7.8",
     "chalk": "^5.3.0",
     "inquirer": "^9.2.12",
     "ora": "^7.0.1",
@@ -52,7 +52,6 @@
     "@types/node": "^20.10.0",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.3",
-    "@types/handlebars": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.54.0",

@@ -1,20 +1,13 @@
 import type { GridConfig } from '../../validators/config';
-import {
-  GCP_MODULE_SPECS,
-  renderGcpOutputs,
-  renderGcpResources,
-} from '../../generators/terraform/gcpResources';
 import type { ProviderAdapter } from '../types';
 
+/** Same generate path as every other cloud — catalog only. */
 export const gcpProvider: ProviderAdapter = {
   id: 'gcp',
   label: 'Google Cloud',
   status: 'supported',
   defaultRegion: 'us-central1',
   moduleRoot: 'gcp',
-  moduleSpecsForGenerate: GCP_MODULE_SPECS,
-  renderResources: renderGcpResources,
-  renderOutputs: renderGcpOutputs,
   renderProviderBlock(_config: GridConfig): string {
     return `terraform {
   required_providers {

@@ -7,7 +7,7 @@
       "type": "vpc",
       "name": "grid-demo-vpc",
       "cidr": "10.20.0.0/16",
-      "description": "Grid demo VPC for AWS interview showcase"
+      "description": "Grid demo VPC for a minimal AWS networking stack"
     },
     {
       "type": "subnet",
@@ -30,6 +30,6 @@
   "metadata": {
     "name": "simple-vpc-vm-aws",
     "description": "AWS VPC + public subnet + EC2 (ap-south-1)",
-    "environment": "dev"
+    "environment": "development"
   }
 }

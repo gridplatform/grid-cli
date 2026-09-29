@@ -1,5 +1,6 @@
 /**
- * Provider bootstrap — import this once from CLI entry / generate path.
+ * Provider bootstrap — import once from CLI entry / generate.
+ * Every registered cloud uses the same catalog generate path.
  */
 import { registerProvider } from './registry';
 import { awsProvider } from './aws';
@@ -17,7 +18,7 @@ import {
   rancherProvider,
   tencentProvider,
   yottaProvider,
-} from './stubs';
+} from './catalogOnly';
 
 let bootstrapped = false;
 
@@ -27,7 +28,6 @@ export function bootstrapProviders(): void {
   registerProvider(awsProvider);
   registerProvider(gcpProvider);
   registerProvider(azureProvider);
-
   registerProvider(oracleProvider);
   registerProvider(ibmProvider);
   registerProvider(alibabaProvider);

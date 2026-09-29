@@ -1,20 +1,13 @@
 import type { GridConfig } from '../../validators/config';
-import {
-  AWS_MODULE_SPECS,
-  renderAwsOutputs,
-  renderAwsResources,
-} from '../../generators/terraform/awsResources';
 import type { ProviderAdapter } from '../types';
 
+/** Same generate path as every other cloud — catalog only. */
 export const awsProvider: ProviderAdapter = {
   id: 'aws',
   label: 'Amazon Web Services',
   status: 'supported',
   defaultRegion: 'ap-south-1',
   moduleRoot: 'aws',
-  moduleSpecsForGenerate: AWS_MODULE_SPECS,
-  renderResources: renderAwsResources,
-  renderOutputs: renderAwsOutputs,
   renderProviderBlock(_config: GridConfig): string {
     return `terraform {
   required_providers {

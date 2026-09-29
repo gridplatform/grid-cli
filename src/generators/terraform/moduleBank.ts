@@ -4,16 +4,15 @@ import fs from 'fs-extra';
 /**
  * Resolve Grid's Terraform module bank (grid-terraform).
  *
- * Product rule: Grid uses grid-terraform as source of truth — not a personal module repo.
- *
- * Override (local forks only): GRID_MODULE_BANK=/path/to/grid-terraform
+ * Override: GRID_MODULE_BANK=/path/to/grid-terraform
  */
 export function resolveModuleBankRoot(): string {
   if (process.env.GRID_MODULE_BANK) {
     return path.resolve(process.env.GRID_MODULE_BANK);
   }
 
-  // grid-cli: .../grid/grid-cli/src/generators/terraform
+  // grid-cli: .../grid/grid-cli/src/generators/terraform  (tsx)
+  //        or .../grid/grid-cli/dist/generators/terraform (built)
   // bank:     .../grid/grid-terraform
   return path.resolve(__dirname, '../../../../grid-terraform');
 }
@@ -25,13 +24,20 @@ export interface ModuleCopySpec {
   destPath: string;
 }
 
+export type ModuleInstallMode = 'link' | 'copy';
+
 /**
- * Copy selected standalone modules from grid-terraform into the generate output.
+ * Install modules into the generate output.
+ *
+ * Default: **symlink** into grid-terraform (fast). Force full copy with
+ * GRID_MODULE_COPY=1 when you need a self-contained workspace.
+ *
+ * Specs are installed in parallel.
  */
 export async function copyModulesFromBank(
   outputModulesDir: string,
   specs: ModuleCopySpec[]
-): Promise<string[]> {
+): Promise<{ installed: string[]; mode: ModuleInstallMode }> {
   const bankRoot = resolveModuleBankRoot();
   if (!(await fs.pathExists(bankRoot))) {
     throw new Error(
@@ -40,17 +46,41 @@ export async function copyModulesFromBank(
     );
   }
 
-  const copied: string[] = [];
-  for (const spec of specs) {
-    const src = path.join(bankRoot, spec.bankPath);
-    const dest = path.join(outputModulesDir, spec.destPath);
-    if (!(await fs.pathExists(src))) {
-      throw new Error(`Module not found in grid-terraform: ${src}`);
-    }
-    await fs.copy(src, dest, {
-      filter: (p) => !p.includes('node_modules') && !p.endsWith('.DS_Store'),
-    });
-    copied.push(spec.destPath);
-  }
-  return copied;
+  const forceCopy = process.env.GRID_MODULE_COPY === '1' || process.env.GRID_MODULE_COPY === 'true';
+
+  const results = await Promise.all(
+    specs.map(async (spec) => {
+      const src = path.resolve(bankRoot, spec.bankPath);
+      const dest = path.join(outputModulesDir, spec.destPath);
+      if (!(await fs.pathExists(src))) {
+        throw new Error(`Module not found in grid-terraform: ${src}`);
+      }
+      await fs.ensureDir(path.dirname(dest));
+      await fs.remove(dest);
+
+      if (!forceCopy) {
+        try {
+          await fs.symlink(src, dest, symlinkType());
+          return { destPath: spec.destPath, linked: true };
+        } catch {
+          // Fall through to copy (e.g. no symlink permission on Windows).
+        }
+      }
+
+      await fs.copy(src, dest, {
+        filter: (p) => !p.includes(`${path.sep}node_modules`) && !p.endsWith('.DS_Store'),
+        overwrite: true,
+      });
+      return { destPath: spec.destPath, linked: false };
+    })
+  );
+
+  const mode: ModuleInstallMode =
+    results.length > 0 && results.every((r) => r.linked) ? 'link' : 'copy';
+
+  return { installed: results.map((r) => r.destPath), mode };
+}
+
+function symlinkType(): 'dir' | 'junction' {
+  return process.platform === 'win32' ? 'junction' : 'dir';
 }
