@@ -12,7 +12,12 @@ const SKIP_BASENAMES = new Set([
 ]);
 
 /**
- * Resolve config root: --config-dir | GRID_CONFIG_ROOT | ./grid-config | sibling ../grid-config
+ * Resolve desired-state root.
+ *
+ * Product rule: **grid-core** owns this path (`GRID_CONFIG_ROOT`) and injects it
+ * when spawning the CLI. Standalone CLI falls back to the Core demo tree, not grid-config.
+ *
+ * Order: --config-dir | GRID_CONFIG_ROOT | demo gitops-repo | error-ish fallback
  */
 export function resolveConfigRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
@@ -20,14 +25,16 @@ export function resolveConfigRoot(explicit?: string): string {
 
   const cwd = process.cwd();
   const candidates = [
-    path.join(cwd, 'grid-config'),
-    path.resolve(cwd, '../grid-config'),
-    path.resolve(cwd, '../../grid-config'),
+    // Local demo desired-state (grid-core examples) — preferred for testing
+    path.resolve(cwd, '../grid-core/examples/gitops-repo'),
+    path.resolve(cwd, '../../grid-core/examples/gitops-repo'),
+    path.join(cwd, 'examples', 'gitops-repo'),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  return path.join(cwd, 'grid-config');
+  // Last resort: still avoid inventing grid-config as SoT
+  return path.resolve(cwd, '../grid-core/examples/gitops-repo');
 }
 
 export function inventoryPath(configRoot: string): string {
@@ -161,12 +168,13 @@ export function toPosix(p: string): string {
   return p.split(path.sep).join('/');
 }
 
-/** Walk up from a config file to find grid-config root (.grid/inventory or folder name). */
+/** Walk up from a config file to find desired-state root (.grid/inventory, gitops-repo, or infrastructures/). */
 export function inferConfigRootFromPath(configPath: string): string | undefined {
   let dir = path.dirname(path.resolve(configPath));
   for (let i = 0; i < 8; i++) {
     if (fs.existsSync(path.join(dir, '.grid', 'inventory.json'))) return dir;
-    if (path.basename(dir) === 'grid-config') return dir;
+    if (path.basename(dir) === 'gitops-repo') return dir;
+    if (fs.existsSync(path.join(dir, 'infrastructures'))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

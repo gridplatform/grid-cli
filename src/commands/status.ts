@@ -21,7 +21,7 @@ export function statusCommand(program: Command) {
     .option('-o, --output <dir>', 'Directory containing Terraform files', './generated')
     .option(
       '--config-dir <path>',
-      'Desired-state root (grid-config). Source of truth for adds/changes/stale detection'
+      'Desired-state root (from Core: GRID_CONFIG_ROOT). Source of truth for adds/changes/stale detection'
     )
     .action(async (options) => {
       try {
@@ -44,7 +44,7 @@ async function statusWorkspace(output: string) {
     console.log(chalk.yellow(`No deployment found at: ${outputDir}`));
     console.log(chalk.gray('Run "grid deploy" to start a deployment.'));
     console.log(
-      chalk.gray('Or pass --config-dir to diff against a grid-config desired-state tree.')
+      chalk.gray('Or pass --config-dir / set GRID_CONFIG_ROOT (owned by grid-core) to diff desired state.')
     );
     return;
   }

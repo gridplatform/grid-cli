@@ -29,7 +29,7 @@ export function pruneCommand(program: Command) {
     )
     .requiredOption(
       '--config-dir <path>',
-      'Desired-state root (grid-config). Source of truth for stale detection'
+      'Desired-state root (from Core: GRID_CONFIG_ROOT). Source of truth for stale detection'
     )
     .option('--format <format>', 'IaC tool (terraform|opentofu)', 'terraform')
     .option('--destroy', 'Interactively confirm and destroy selected stale units', false)
