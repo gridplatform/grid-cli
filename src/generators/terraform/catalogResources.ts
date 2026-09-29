@@ -10,6 +10,7 @@ import {
   lookupCatalogEntry,
 } from './resourceCatalog';
 import type { ResolvedDependency } from '../../config/resolveDependencies';
+import { renderRemoteStateDataBlock } from './backend';
 
 /**
  * Shared catalog → HCL renderer for every cloud.
@@ -106,7 +107,11 @@ export function renderCatalogResources(
     );
   }
 
-  const remoteBlocks = renderRemoteStateBlocks(defaults.dependencies || []);
+  const remoteBlocks = renderRemoteStateBlocks(defaults.dependencies || [], {
+    provider,
+    project: defaults.project,
+    region: defaults.region,
+  });
 
   const blocks = resources
     .filter((r) => !foldedAway.has(r))
@@ -125,20 +130,29 @@ export function renderCatalogResources(
   return [remoteBlocks, ...blocks].filter(Boolean).join('\n\n');
 }
 
-/** Local-backend remote_state blocks for each dependsOn unit. */
-export function renderRemoteStateBlocks(dependencies: ResolvedDependency[]): string {
+/** Remote-state blocks for each dependsOn unit (local or GRID_TF_BACKEND). */
+export function renderRemoteStateBlocks(
+  dependencies: ResolvedDependency[],
+  leaf: { provider: string; project: string; region: string }
+): string {
   if (dependencies.length === 0) return '';
   const blocks: string[] = [
     '# Cross-unit references (metadata.dependsOn) — read-only remote state; do not recreate those resources here.',
   ];
   for (const dep of dependencies) {
     const statePath = path.join(dep.archiveDir, 'terraform.tfstate').replace(/\\/g, '/');
-    blocks.push(`data "terraform_remote_state" "${dep.remoteStateId}" {
-  backend = "local"
-  config = {
-    path = "${statePath}"
-  }
-}`);
+    blocks.push(
+      renderRemoteStateDataBlock(
+        dep.remoteStateId,
+        dep.stateKeyRelPath || dep.relPath,
+        {
+          provider: leaf.provider as never,
+          project: leaf.project,
+          region: leaf.region,
+        },
+        statePath
+      )
+    );
   }
   return blocks.join('\n\n');
 }

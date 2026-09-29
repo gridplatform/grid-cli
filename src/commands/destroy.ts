@@ -83,6 +83,7 @@ export function destroyCommand(program: Command) {
             configRoot: options.configDir
               ? resolveConfigRoot(options.configDir)
               : resolved.configRoot,
+            unitRelPath: rel,
             dependencies: resolved.dependencies,
           });
         }

@@ -72,6 +72,9 @@ export function planCommand(program: Command) {
             format: options.format as 'terraform' | 'opentofu',
             moduleInstallMode: inArchive ? 'copy' : undefined,
             configRoot: configRoot || undefined,
+            unitRelPath: inArchive
+              ? toPosix(path.relative(configRoot!, configPath))
+              : undefined,
             dependencies: resolved.dependencies,
           });
           for (const w of resolved.warnings) {

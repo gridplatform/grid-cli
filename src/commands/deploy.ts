@@ -107,6 +107,7 @@ async function deploySingle(options: {
       format: options.format as 'terraform' | 'opentofu',
       moduleInstallMode: underRoot || !options.output ? 'copy' : undefined,
       configRoot: configRoot || undefined,
+      unitRelPath: rel || undefined,
       dependencies: resolved.dependencies,
     });
   }
@@ -218,6 +219,7 @@ async function deployReconcile(options: {
       format: options.format as 'terraform' | 'opentofu',
       moduleInstallMode: 'copy',
       configRoot,
+      unitRelPath: t.configPath,
       dependencies: resolved.dependencies,
     });
     await deployInfrastructure({
