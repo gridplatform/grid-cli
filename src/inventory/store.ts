@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import type { DesiredUnit, InventoryFile, InventoryUnit } from './types';
 import { hashConfig, unitIdForConfigPath } from './types';
+import { findProjectRoot } from '../project/marker';
 
 const SKIP_BASENAMES = new Set([
   'catalog_index.json',
@@ -14,27 +15,41 @@ const SKIP_BASENAMES = new Set([
 /**
  * Resolve desired-state root.
  *
- * Product rule: **grid-core** owns this path (`GRID_CONFIG_ROOT`) and injects it
- * when spawning the CLI. Standalone CLI falls back to the Core demo tree, not grid-config.
+ * Product rule: **grid-core** owns `GRID_CONFIG_ROOT` for real installs and injects
+ * it when spawning the CLI. Locally:
+ *   --config-dir | GRID_CONFIG_ROOT | `grid init` project (cwd↑) | demo (test only)
  *
- * Order: --config-dir | GRID_CONFIG_ROOT | demo gitops-repo | error-ish fallback
+ * `demo-infra` is a **test fixture**, never the product default without GRID_USE_DEMO=1.
  */
 export function resolveConfigRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
   if (process.env.GRID_CONFIG_ROOT) return path.resolve(process.env.GRID_CONFIG_ROOT);
 
-  const cwd = process.cwd();
-  const candidates = [
-    // Local demo desired-state (grid-core examples) — preferred for testing
-    path.resolve(cwd, '../grid-core/examples/gitops-repo'),
-    path.resolve(cwd, '../../grid-core/examples/gitops-repo'),
-    path.join(cwd, 'examples', 'gitops-repo'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+  const project = findProjectRoot(process.cwd());
+  if (project) return project;
+
+  const useDemo =
+    process.env.GRID_USE_DEMO === '1' || process.env.GRID_USE_DEMO === 'true';
+  if (useDemo) {
+    const cwd = process.cwd();
+    const candidates = [
+      path.resolve(cwd, '../demo-infra'),
+      path.resolve(cwd, '../../demo-infra'),
+      path.join(cwd, 'demo-infra'),
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
+    }
+    return path.resolve(cwd, '../demo-infra');
   }
-  // Last resort: still avoid inventing grid-config as SoT
-  return path.resolve(cwd, '../grid-core/examples/gitops-repo');
+
+  throw new Error(
+    'No Grid desired-state root found.\n' +
+      '  • Normal:  cd your-repo && grid init   (then use that folder)\n' +
+      '  • Or set:  GRID_CONFIG_ROOT=/path/to/desired-state  (owned by grid-core)\n' +
+      '  • Or pass: --config-dir /path/to/desired-state\n' +
+      '  • Tests only: GRID_USE_DEMO=1  (uses sibling demo-infra fixture)'
+  );
 }
 
 export function inventoryPath(configRoot: string): string {
@@ -168,12 +183,15 @@ export function toPosix(p: string): string {
   return p.split(path.sep).join('/');
 }
 
-/** Walk up from a config file to find desired-state root (.grid/inventory, gitops-repo, or infrastructures/). */
+/** Walk up from a config file to find desired-state root (.grid/project.json, demo-infra fixture, …). */
 export function inferConfigRootFromPath(configPath: string): string | undefined {
+  const fromFile = findProjectRoot(path.dirname(path.resolve(configPath)));
+  if (fromFile) return fromFile;
+
   let dir = path.dirname(path.resolve(configPath));
   for (let i = 0; i < 8; i++) {
     if (fs.existsSync(path.join(dir, '.grid', 'inventory.json'))) return dir;
-    if (path.basename(dir) === 'gitops-repo') return dir;
+    if (path.basename(dir) === 'demo-infra') return dir;
     if (fs.existsSync(path.join(dir, 'infrastructures'))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -185,7 +203,7 @@ export function inferConfigRootFromPath(configPath: string): string | undefined 
 function guessEnvFromPath(configPath: string): string {
   const parts = configPath.split('/');
   for (const p of parts) {
-    if (['development', 'staging', 'production', 'sandbox'].includes(p)) return p;
+    if (['development', 'staging', 'production'].includes(p)) return p;
   }
   return 'development';
 }

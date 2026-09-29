@@ -29,6 +29,14 @@ export function statusCommand(program: Command) {
           await statusConfigDir(options.configDir);
           return;
         }
+        // Prefer desired-state root when Core/env/`grid init` project is available.
+        try {
+          const root = resolveConfigRoot();
+          await statusConfigDir(root);
+          return;
+        } catch {
+          /* fall through to workspace-only status */
+        }
         await statusWorkspace(options.output);
       } catch (error) {
         console.error(chalk.red('Status check failed:'));
@@ -44,7 +52,10 @@ async function statusWorkspace(output: string) {
     console.log(chalk.yellow(`No deployment found at: ${outputDir}`));
     console.log(chalk.gray('Run "grid deploy" to start a deployment.'));
     console.log(
-      chalk.gray('Or pass --config-dir / set GRID_CONFIG_ROOT (owned by grid-core) to diff desired state.')
+      chalk.gray(
+        'Or: grid init  →  export GRID_CONFIG_ROOT=…  →  grid status\n' +
+          '    (demo-infra is a test fixture only)'
+      )
     );
     return;
   }
