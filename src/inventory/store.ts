@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import type { DesiredUnit, InventoryFile, InventoryUnit } from './types';
 import { hashConfig, unitIdForConfigPath } from './types';
 import { findProjectRoot } from '../project/marker';
+import { ARCHIVE_DIR, GENERATED_MARKER, artifactDirForConfig } from '../config/artifacts';
 
 const SKIP_BASENAMES = new Set([
   'catalog_index.json',
@@ -56,9 +57,14 @@ export function inventoryPath(configRoot: string): string {
   return path.join(configRoot, '.grid', 'inventory.json');
 }
 
+/**
+ * Terraform workspace for a desired-state unit =
+ *   <configRoot>/archive/<cloud>/<env>/<type>/<name>/
+ * mirroring the JSON path (without .json). Kept in Git as the Grid exit buffer.
+ */
 export function workspaceDirFor(configRoot: string, configPath: string): string {
-  const id = unitIdForConfigPath(toPosix(configPath));
-  return path.join(configRoot, '.grid', 'workspaces', id);
+  const abs = path.isAbsolute(configPath) ? configPath : path.join(configRoot, configPath);
+  return artifactDirForConfig(abs, configRoot);
 }
 
 export async function loadInventory(configRoot: string): Promise<InventoryFile> {
@@ -138,11 +144,21 @@ export async function discoverDesiredUnits(configRoot: string): Promise<DesiredU
     if (!(await fs.pathExists(dir))) return;
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const ent of entries) {
-      if (ent.name === '.grid' || ent.name === '.git' || ent.name === 'node_modules' || ent.name === 'scripts') {
+      if (
+        ent.name === '.grid' ||
+        ent.name === '.git' ||
+        ent.name === 'node_modules' ||
+        ent.name === 'scripts' ||
+        ent.name === '.terraform' ||
+        ent.name === '.ephemeral' ||
+        ent.name === ARCHIVE_DIR
+      ) {
         continue;
       }
       const abs = path.join(dir, ent.name);
       if (ent.isDirectory()) {
+        // Skip misplaced / legacy buffers that still carry the marker
+        if (await fs.pathExists(path.join(abs, GENERATED_MARKER))) continue;
         await walk(abs);
         continue;
       }

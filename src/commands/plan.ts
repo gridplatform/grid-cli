@@ -7,6 +7,8 @@ import fs from 'fs-extra';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { loadConfigWithDependencies } from '../config/resolveDependencies';
+import { ARCHIVE_DIR, artifactDirForConfig, writeArtifactMeta } from '../config/artifacts';
+import { inferConfigRootFromPath, resolveConfigRoot, toPosix } from '../inventory/store';
 
 const execAsync = promisify(exec);
 
@@ -20,9 +22,12 @@ export function planCommand(program: Command) {
     .option('-c, --config <path>', 'Path to Grid configuration file (JSON)', 'grid.json')
     .option(
       '--config-dir <path>',
-      'Desired-state root (resolves metadata.dependsOn for split vpc/vm files)'
+      'Desired-state root (resolves metadata.dependsOn; owns archive/ buffer)'
     )
-    .option('-o, --output <dir>', 'Output directory for generated files', './generated')
+    .option(
+      '-o, --output <dir>',
+      `Output directory (default: <config-root>/${ARCHIVE_DIR}/<same-path-as-json>/)`
+    )
     .option('--format <format>', 'IaC tool (terraform|opentofu)', 'terraform')
     .option('--skip-generate', 'Skip file generation (use existing files)', false)
     .action(async (options) => {
@@ -30,19 +35,42 @@ export function planCommand(program: Command) {
 
       try {
         const configPath = path.resolve(options.config);
-        const outputDir = path.resolve(options.output);
         const tool = options.format === 'opentofu' ? 'tofu' : 'terraform';
 
+        const resolved = await loadConfigWithDependencies(configPath, {
+          configDir: options.configDir,
+        });
+        const configRoot =
+          (options.configDir ? resolveConfigRoot(options.configDir) : undefined) ||
+          resolved.configRoot ||
+          inferConfigRootFromPath(configPath);
+
+        const inArchive = !options.output;
+        if (inArchive && !configRoot) {
+          throw new Error(
+            'Cannot resolve desired-state root for archive/ output. ' +
+              'Pass --config-dir or -o <dir>.'
+          );
+        }
+
+        const outputDir = inArchive
+          ? artifactDirForConfig(configPath, configRoot!)
+          : path.resolve(options.output);
+
         if (!options.skipGenerate) {
-          spinner.text = 'Loading configuration (and dependsOn)...';
-          const resolved = await loadConfigWithDependencies(configPath, {
-            configDir: options.configDir,
-          });
           spinner.text = 'Generating Terraform files...';
           await fs.ensureDir(outputDir);
+          if (inArchive) {
+            const rel = toPosix(path.relative(configRoot!, configPath));
+            await writeArtifactMeta(outputDir, {
+              configPath: rel,
+              format: options.format,
+            });
+          }
           await generateInfrastructure(resolved.config, {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
+            moduleInstallMode: inArchive ? 'copy' : undefined,
           });
           for (const w of resolved.warnings) {
             console.warn(chalk.yellow(`  - ${w}`));

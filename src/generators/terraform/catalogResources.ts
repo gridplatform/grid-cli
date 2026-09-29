@@ -129,6 +129,9 @@ export function renderCatalogResource(
   for (const [key, value] of Object.entries(resource)) {
     if (META_KEYS.has(key) || omit.has(key) || value === undefined) continue;
     const dest = entry.inputMap?.[key] ?? key;
+    // Grid JSON may carry docs fields (e.g. description) that only some modules accept.
+    // When we know the module's variables.tf, skip anything undeclared.
+    if (declared !== null && !declared.has(dest)) continue;
     variables[dest] = toHclValue(value);
   }
 

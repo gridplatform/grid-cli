@@ -10,10 +10,11 @@ import {
   EPHEMERAL_DIR,
 } from '../project/marker';
 
+/** Clouds scaffolded by grid init (same layout as grid-config / demo-infra). */
+const INIT_CLOUDS = ['aws', 'gcp'] as const;
+
 /**
- * grid init — scaffold a normal desired-state repo (like git init for Grid).
- *
- * demo-infra is a test fixture only. Real use: git init → grid init → edit JSON → generate/deploy.
+ * grid init — scaffold desired-state: <cloud>/<env>/<type>/<name>.json
  */
 export function initCommand(program: Command) {
   program
@@ -38,11 +39,14 @@ export function initCommand(program: Command) {
           process.exit(1);
         }
 
-        for (const env of ENV_FOLDERS) {
-          await fs.ensureDir(path.join(root, env));
-          const keep = path.join(root, env, '.gitkeep');
-          if (!(await fs.pathExists(keep))) {
-            await fs.writeFile(keep, '');
+        for (const cloud of INIT_CLOUDS) {
+          for (const env of ENV_FOLDERS) {
+            const folder = path.join(root, cloud, env);
+            await fs.ensureDir(folder);
+            const keep = path.join(folder, '.gitkeep');
+            if (!(await fs.pathExists(keep))) {
+              await fs.writeFile(keep, '');
+            }
           }
         }
 
@@ -52,7 +56,7 @@ export function initCommand(program: Command) {
         if (!(await fs.pathExists(gi))) {
           await fs.writeFile(
             gi,
-            `# Grid local state (do not commit workspaces / inventory / ephemeral clones)
+            `# Grid local state
 .grid/workspaces/
 .grid/inventory.json
 ${EPHEMERAL_DIR}/
@@ -66,24 +70,21 @@ ${EPHEMERAL_DIR}/
             readme,
             `# Grid desired state
 
-This directory is your **configuration root** (\`GRID_CONFIG_ROOT\`).
-
-Canonical environments (only three):
+Configuration root (\`GRID_CONFIG_ROOT\`). Layout matches platform desired-state:
 
 \`\`\`text
-development/   staging/   production/
-  <stack-name>/
-    grid.json
+<cloud>/                         # aws | gcp | …
+  <environment>/                 # development | staging | production
+    <infra-type>/                # vpc | ec2 | s3 | …
+      <name>.json                # intent
+archive/<cloud>/…/<name>/        # Terraform buffer (grid generate)
 \`\`\`
 
-Need an isolated copy of development so shared resources are not contested?
+Ephemeral copy of an env (TTL):
 
 \`\`\`bash
 grid env clone development --name try-rds --ttl 24h
-# → .ephemeral/development--try-rds/  (TTL; auto-suffixes resource names)
 \`\`\`
-
-Point grid-core at this folder:
 
 \`\`\`bash
 export GRID_CONFIG_ROOT=${root}
@@ -93,9 +94,9 @@ export GRID_CONFIG_ROOT=${root}
         }
 
         if (options.sample) {
-          const sampleDir = path.join(root, 'development', 'example-vpc');
+          const sampleDir = path.join(root, 'aws', 'development', 'vpc');
           await fs.ensureDir(sampleDir);
-          const sampleJson = path.join(sampleDir, 'grid.json');
+          const sampleJson = path.join(sampleDir, 'example-vpc.json');
           if (!(await fs.pathExists(sampleJson))) {
             await fs.writeJSON(
               sampleJson,
@@ -106,7 +107,7 @@ export GRID_CONFIG_ROOT=${root}
                 metadata: {
                   name: 'example-vpc',
                   environment: 'development',
-                  description: 'Sample stack from grid init --sample (edit before apply)',
+                  description: 'Sample stack from grid init --sample',
                 },
                 resources: [
                   {
@@ -114,6 +115,8 @@ export GRID_CONFIG_ROOT=${root}
                     name: 'example-vpc',
                     cidr: '10.60.0.0/16',
                     description: 'Example VPC',
+                    enable_nat_gateway: false,
+                    private_subnets: [],
                   },
                   {
                     type: 'subnet',
@@ -141,18 +144,12 @@ export GRID_CONFIG_ROOT=${root}
 
         console.log(chalk.green(`\nInitialized Grid desired state at ${root}`));
         console.log(chalk.gray(`  marker: ${PROJECT_FILE}`));
-        console.log(chalk.gray(`  envs:   ${ENV_FOLDERS.join(', ')}`));
+        console.log(chalk.gray(`  layout: <cloud>/{${ENV_FOLDERS.join(',')}}/…`));
         console.log(`
 ${chalk.bold('Normal workflow')}
-  1. ${chalk.cyan('git init')} / ${chalk.cyan('grid init --git')}   (repo for desired state)
-  2. Add stacks under development|staging|production/<name>/grid.json
-     (isolated test copy: grid env clone development --name <slug> --ttl 24h)
-  3. Point the API (grid-core) at this folder:
-       ${chalk.cyan(`export GRID_CONFIG_ROOT=${root}`)}
-  4. Generate (CLI add-on):
-       ${chalk.cyan('grid generate -c development/…/grid.json --config-dir "$GRID_CONFIG_ROOT" -o ./out')}
-
-${chalk.dim('Note: ../demo-infra is a test fixture only — not your production config root.')}
+  1. Add units under aws|gcp / development|staging|production / <type> / <name>.json
+  2. export GRID_CONFIG_ROOT=${root}
+  3. grid generate -c aws/development/vpc/<name>.json --config-dir "$GRID_CONFIG_ROOT" -o ./out
 `);
       } catch (error) {
         console.error(chalk.red(error instanceof Error ? error.message : String(error)));

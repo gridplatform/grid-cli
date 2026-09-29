@@ -15,6 +15,7 @@ import {
   upsertAppliedUnit,
   workspaceDirFor,
 } from '../inventory/store';
+import { artifactDirForConfig, writeArtifactMeta } from '../config/artifacts';
 import { diffConfig } from '../inventory/diff';
 import { hashConfig } from '../inventory/types';
 
@@ -31,8 +32,11 @@ export function deployCommand(program: Command) {
       'Desired-state root (from Core: GRID_CONFIG_ROOT). Resolves dependsOn; with --reconcile deploys added/changed'
     )
     .option('--reconcile', 'With --config-dir: deploy added + changed units only (never stale)', false)
-    .option('-o, --output <dir>', 'Output directory for generated files', './generated')
-    .option('--format <format>', 'IaC tool (terraform|opentofu)', 'opentofu')
+    .option(
+      '-o, --output <dir>',
+      'Scratch output only when outside desired-state root (units under root use archive/)'
+    )
+    .option('--format <format>', 'IaC tool (terraform|opentofu)', 'terraform')
     .option('--auto-approve', 'Skip confirmation prompt', false)
     .option('--skip-generate', 'Skip file generation (use existing files)', false)
     .action(async (options) => {
@@ -52,7 +56,7 @@ export function deployCommand(program: Command) {
 
 async function deploySingle(options: {
   config: string;
-  output: string;
+  output?: string;
   format: string;
   autoApprove: boolean;
   skipGenerate: boolean;
@@ -73,17 +77,35 @@ async function deploySingle(options: {
       ? resolveConfigRoot(options.configDir)
       : resolved.configRoot || inferConfigRootFromPath(configPath);
   const rel = configRoot ? toPosix(path.relative(configRoot, configPath)) : undefined;
-  const outputDir =
-    configRoot && rel && !rel.startsWith('..')
-      ? workspaceDirFor(configRoot, rel)
-      : path.resolve(options.output);
+  const underRoot = Boolean(configRoot && rel && !rel.startsWith('..') && !path.isAbsolute(rel));
+
+  // Prefer <configRoot>/archive/<same-path-as-json>/ (Grid exit buffer in Git).
+  let outputDir: string;
+  if (underRoot) {
+    outputDir = workspaceDirFor(configRoot!, rel!);
+  } else if (options.output) {
+    outputDir = path.resolve(options.output);
+  } else if (configRoot) {
+    outputDir = artifactDirForConfig(configPath, configRoot);
+  } else {
+    throw new Error(
+      'Cannot resolve archive/ output. Pass --config-dir / GRID_CONFIG_ROOT, or -o <dir>.'
+    );
+  }
 
   if (!options.skipGenerate) {
     spinner.text = 'Generating Terraform files...';
     await fs.ensureDir(outputDir);
+    if (underRoot || !options.output) {
+      await writeArtifactMeta(outputDir, {
+        configPath: rel || path.basename(configPath),
+        format: options.format,
+      });
+    }
     await generateInfrastructure(config, {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
+      moduleInstallMode: underRoot || !options.output ? 'copy' : undefined,
     });
   }
 
@@ -204,9 +226,14 @@ async function deployReconcile(options: {
     const outputDir = workspaceDirFor(configRoot, t.configPath);
     console.log(chalk.cyan(`\n→ ${t.configPath}`));
     await fs.ensureDir(outputDir);
+    await writeArtifactMeta(outputDir, {
+      configPath: t.configPath,
+      format: options.format,
+    });
     await generateInfrastructure(resolved.config, {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
+      moduleInstallMode: 'copy',
     });
     await deployInfrastructure({
       config: resolved.config as never,
