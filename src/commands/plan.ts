@@ -71,6 +71,8 @@ export function planCommand(program: Command) {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
             moduleInstallMode: inArchive ? 'copy' : undefined,
+            configRoot: configRoot || undefined,
+            dependencies: resolved.dependencies,
           });
           for (const w of resolved.warnings) {
             console.warn(chalk.yellow(`  - ${w}`));

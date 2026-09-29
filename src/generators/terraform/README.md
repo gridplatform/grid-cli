@@ -33,6 +33,17 @@ archive/… or -o dir → main.tf + provider.tf + …
 1. **New type:** row in `resourceCatalog.ts` + module under `grid-terraform/<cloud>/…`
 2. **New cloud:** register under `src/providers/` (provider.tf only) + catalog rows
 3. **Subnet-into-VPC (any cloud):** set `foldInto` on the subnet catalog entry
+   (only within the **same** unit JSON — e.g. the VPC unit owns its subnets)
+
+## Cross-unit network (`metadata.dependsOn`)
+
+Product rule: a VPC/subnet unit keeps its own Terraform workspace. A VM / SG / cluster
+unit **references** it — it never recreates those resources.
+
+- Put `metadata.dependsOn: ["aws/<env>/vpc/<name>.json"]` on the consumer
+- Point `vpc` / `subnet` fields at logical Grid names from that unit
+- Generate emits `terraform_remote_state` into the dependency’s `archive/…/terraform.tfstate`
+- Deploy VPC first (so outputs exist), then plan/apply the consumer
 
 Provider `status` is discovery metadata for listing/UI — it does not block generate.
 Apply still needs a module bank entry and credentials.
