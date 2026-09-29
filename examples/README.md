@@ -2,7 +2,7 @@
 
 Prefer the canonical demos under **[`../demo-infra`](../demo-infra/)** (`<cloud>/<env>/<type>/<name>.json`). Files here are thin copies for quick `cd grid-cli && … examples/…` workflows.
 
-Configs assume a sibling **grid-terraform** module bank (or set **`GRID_MODULE_BANK`**). Full AWS/GCP deploy guide: [`../docs/CLI_AWS_GCP.md`](../docs/CLI_AWS_GCP.md).
+Configs assume a sibling **grid-terraform** module bank (or set **`GRID_MODULE_BANK`**). Full AWS/GCP deploy guide: [grid-docs → CLI](https://github.com/gridplatform/grid-docs/blob/main/docs/cli/aws-gcp.md).
 
 ## Catalog path — GCP VPC + VM
 
