@@ -22,13 +22,13 @@ export function listProviders(): ProviderAdapter[] {
   return [...registry.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
+/**
+ * Resolve a registered provider for generate.
+ *
+ * `status` on the adapter is discovery metadata for `grid providers` only.
+ * Generate is allowed for any registered cloud; whether apply works depends on
+ * the module bank entry and credentials — not on UI feature flags.
+ */
 export function assertProviderCanGenerate(id: string): ProviderAdapter {
-  const adapter = getProvider(id);
-  if (adapter.status === 'supported') {
-    return adapter;
-  }
-  const hint =
-    adapter.statusMessage ||
-    `${adapter.label} is ${adapter.status.replace('_', ' ')} in Grid CLI.`;
-  throw new Error(hint);
+  return getProvider(id);
 }

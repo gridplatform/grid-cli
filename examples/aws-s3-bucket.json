@@ -1,0 +1,17 @@
+{
+  "provider": "aws",
+  "project": "grid-demo",
+  "region": "ap-south-1",
+  "resources": [
+    {
+      "type": "s3",
+      "name": "logs",
+      "bucket": "grid-demo-logs-change-me",
+      "force_destroy": true
+    }
+  ],
+  "metadata": {
+    "name": "s3-logs",
+    "environment": "development"
+  }
+}

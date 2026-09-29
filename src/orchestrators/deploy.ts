@@ -20,7 +20,7 @@ export interface DeployOptions {
  * Deploy infrastructure using Terraform/OpenTofu
  */
 export async function deployInfrastructure(options: DeployOptions): Promise<void> {
-  const { config, outputDir, tool, autoApprove } = options;
+  const { outputDir, tool, autoApprove } = options;
   
   // Verify tool is installed
   await verifyToolInstalled(tool);
