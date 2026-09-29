@@ -44,7 +44,7 @@ function runGit(args: string[], cwd: string): Promise<{ code: number; stdout: st
 }
 
 /** Cache dir for a remote GRID_MODULE_BANK URL. */
-export function moduleBankCacheDir(remoteUrl: string): string {
+export function moduleBankCacheDir(_remoteUrl: string): string {
   if (process.env.GRID_MODULE_BANK_CACHE) {
     return path.resolve(process.env.GRID_MODULE_BANK_CACHE);
   }

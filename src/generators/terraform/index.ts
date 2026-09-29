@@ -23,6 +23,11 @@ export interface GenerateOptions {
   moduleInstallMode?: 'link' | 'copy';
   /** Platform desired-state root (for dependsOn remote-state paths). */
   configRoot?: string;
+  /**
+   * Unit path relative to configRoot (with or without .json).
+   * Drives unique remote state keys when GRID_TF_BACKEND is set.
+   */
+  unitRelPath?: string;
   /** Reference-only dependsOn units — never merged into this stack's resources. */
   dependencies?: ResolvedDependency[];
 }
@@ -100,7 +105,7 @@ export async function generateInfrastructure(
     copyModulesFromBank(modulesTarget, specs, installMode ? { mode: installMode } : undefined),
     fs.writeFile(mainTfPath, `${header}${resourceBlocks}\n`),
     fs.writeFile(providerTfPath, provider.renderProviderBlock(config)),
-    fs.writeFile(backendTfPath, generateBackend(config)),
+    fs.writeFile(backendTfPath, generateBackend(config, { unitRelPath: options.unitRelPath })),
     fs.writeFile(outputsTfPath, outputsBody),
     fs.writeFile(variablesTfPath, renderVariables(config, region)),
   ]);

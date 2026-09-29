@@ -30,6 +30,11 @@ export interface ResolvedDependency {
   absPath: string;
   /** Absolute path to that unit's archive Terraform dir (local backend state lives here) */
   archiveDir: string;
+  /**
+   * Path relative to platform configRoot (no .json) — used as remote state key/prefix.
+   * e.g. projects/grid-labs/aws/development/vpc/my-vpc
+   */
+  stateKeyRelPath: string;
   /** Safe Terraform identifier for data.terraform_remote_state.<id> */
   remoteStateId: string;
   config: GridConfig;
@@ -139,6 +144,7 @@ export async function loadConfigWithDependencies(
       relPath: toPosix(path.relative(rootResolved, depAbs)),
       absPath: depAbs,
       archiveDir,
+      stateKeyRelPath: unitRel,
       remoteStateId: remoteStateIdFor(rel),
       config: dep,
       network: extractNetwork(dep.resources),
