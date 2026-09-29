@@ -28,7 +28,7 @@ export function deployCommand(program: Command) {
     .option('-c, --config <path>', 'Path to Grid configuration file (JSON)', 'grid.json')
     .option(
       '--config-dir <path>',
-      'Desired-state root (grid-config). Resolves dependsOn; with --reconcile deploys added/changed'
+      'Desired-state root (from Core: GRID_CONFIG_ROOT). Resolves dependsOn; with --reconcile deploys added/changed'
     )
     .option('--reconcile', 'With --config-dir: deploy added + changed units only (never stale)', false)
     .option('-o, --output <dir>', 'Output directory for generated files', './generated')

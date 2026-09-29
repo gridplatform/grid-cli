@@ -4,7 +4,8 @@ import fs from 'fs-extra';
 /**
  * Resolve Grid's Terraform module bank (grid-terraform).
  *
- * Override: GRID_MODULE_BANK=/path/to/grid-terraform
+ * Product rule: **grid-core** owns this path (`GRID_MODULE_BANK`) and injects it
+ * when spawning the CLI. Standalone fallback: sibling ../grid-terraform.
  */
 export function resolveModuleBankRoot(): string {
   if (process.env.GRID_MODULE_BANK) {
