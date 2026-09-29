@@ -11,13 +11,10 @@ import {
 } from './resourceCatalog';
 
 /**
- * Catalog renderer — **one path for every cloud**.
+ * Shared catalog → HCL renderer for every cloud.
  *
- * Each resource type in resourceCatalog.ts becomes a `module` block (unless
- * foldInto says it belongs inside a parent module). Optional inputMap / omitInputs
- * / foldInto live on the catalog entry so AWS, GCP, Azure, … stay uniform.
- *
- * Complexity: O(R + F) for R resources and F folded children (maps, not nested scans).
+ * Each catalogued type becomes a `module` block unless `foldInto` places it on a
+ * parent. inputMap / omitInputs / foldInto live on the catalog entry.
  */
 
 export interface CatalogRenderDefaults {
@@ -79,7 +76,7 @@ export function renderCatalogResources(
     foldedAway.add(resource);
   }
 
-  // Every folded child must have its parent present as a top-level (non-folded) resource.
+  // Folded children require their parent as a top-level resource in this config.
   const topLevelKeys = new Set(
     resources.filter((r) => !foldedAway.has(r)).map((r) => parentKey(r.type, r.name))
   );

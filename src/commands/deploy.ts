@@ -20,7 +20,7 @@ import { diffConfig } from '../inventory/diff';
 import { hashConfig } from '../inventory/types';
 
 /**
- * grid deploy — single config, or reconcile adds/changes under --config-dir
+ * grid deploy — one unit JSON, or reconcile adds/changes under --config-dir
  */
 export function deployCommand(program: Command) {
   program
@@ -79,7 +79,7 @@ async function deploySingle(options: {
   const rel = configRoot ? toPosix(path.relative(configRoot, configPath)) : undefined;
   const underRoot = Boolean(configRoot && rel && !rel.startsWith('..') && !path.isAbsolute(rel));
 
-  // Prefer <configRoot>/archive/<same-path-as-json>/ (Grid exit buffer in Git).
+  // Prefer archive/<same-path-as-json>/ when the unit sits under the desired-state root.
   let outputDir: string;
   if (underRoot) {
     outputDir = workspaceDirFor(configRoot!, rel!);

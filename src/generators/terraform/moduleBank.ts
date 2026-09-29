@@ -2,41 +2,32 @@ import path from 'path';
 import fs from 'fs-extra';
 
 /**
- * Resolve Grid's Terraform module bank (grid-terraform).
+ * Resolve the Terraform module bank (grid-terraform).
  *
- * Product rule: **grid-core** owns this path (`GRID_MODULE_BANK`) and injects it
- * when spawning the CLI. Standalone fallback: sibling ../grid-terraform.
- *
- * The bank is **read-only** for generate: we copy/link modules INTO archive/,
- * we never write Grid JSON changes back into the bank.
+ * Prefer `GRID_MODULE_BANK` (injected by grid-core on real installs); otherwise
+ * sibling `../grid-terraform`. Generate only copies/links out of the bank.
  */
 export function resolveModuleBankRoot(): string {
   if (process.env.GRID_MODULE_BANK) {
     return path.resolve(process.env.GRID_MODULE_BANK);
   }
 
-  // grid-cli: .../grid/grid-cli/src/generators/terraform  (tsx)
-  //        or .../grid/grid-cli/dist/generators/terraform (built)
-  // bank:     .../grid/grid-terraform
+  // From src/…/terraform or dist/…/terraform → ../../../../grid-terraform
   return path.resolve(__dirname, '../../../../grid-terraform');
 }
 
 export interface ModuleCopySpec {
   /** Path under module bank, e.g. "aws/vpc" */
   bankPath: string;
-  /** Destination under generated/modules, e.g. "aws/vpc" */
+  /** Relative path under the instance output modules/, e.g. "aws/vpc" */
   destPath: string;
 }
 
 export type ModuleInstallMode = 'link' | 'copy';
 
 /**
- * Install modules into the generate output.
- *
- * Default: **symlink** into grid-terraform (fast). Force full copy with
- * GRID_MODULE_COPY=1 when you need a self-contained workspace.
- *
- * Specs are installed in parallel.
+ * Install bank modules into the instance output's modules/ directory.
+ * Default is symlink (fast); set GRID_MODULE_COPY=1 for a full copy (archive/deploy).
  */
 export async function copyModulesFromBank(
   outputModulesDir: string,

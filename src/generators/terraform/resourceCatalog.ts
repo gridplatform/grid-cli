@@ -1,14 +1,9 @@
 /**
- * CATALOG data: Grid resource type → grid-terraform modulePath.
+ * Resource type → grid-terraform modulePath (and optional fold/input maps).
  *
- * Used by catalogResources.ts for **every** cloud the same way.
- * Add new types here + a module under grid-terraform/<cloud>/….
- *
- * Optional `foldInto` / `inputMap` / `omitInputs` describe how JSON maps onto
- * a bank module — still one shared renderer, not per-cloud generator files.
- *
- * Integrity rule: every modulePath MUST have main.tf under grid-terraform/.
- * Verify: node scripts/verify-catalog-bank.js
+ * Consumed by catalogResources.ts for every provider the same way.
+ * Add a type here plus a module under grid-terraform/<cloud>/….
+ * Each modulePath should have main.tf; verify with scripts/verify-catalog-bank.js.
  */
 
 import type { ProviderId } from '../../providers/types';
@@ -522,7 +517,7 @@ export const AZURE_CATALOG: ResourceCatalogEntry[] = [
   { type: 'nsg', label: 'Network security group', modulePath: 'azure/network-security-group', status: 'coming_soon' },
   { type: 'redis', label: 'Redis Cache', modulePath: 'azure/redis-cache', status: 'coming_soon' },
 
-  // AI — durable Terraform (modules present; CLI apply still coming_soon)
+  // AI — durable Terraform (modules present; apply may still be coming_soon)
   { type: 'azure-openai', label: 'Azure OpenAI', modulePath: 'azure/openai', status: 'coming_soon' },
   { type: 'azure-ml', label: 'Azure Machine Learning workspace', modulePath: 'azure/machine-learning', status: 'coming_soon' },
   { type: 'cognitive-services', label: 'Azure AI Services / Foundry Tools account', modulePath: 'azure/cognitive-services', status: 'coming_soon' },

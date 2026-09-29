@@ -1,6 +1,6 @@
 /**
- * Canonical Grid environments — only these three.
- * Temporary copies of an env live under `.ephemeral/` (see env clone), not as a 4th env.
+ * Canonical environments: development | staging | production.
+ * Temporary copies live under `.ephemeral/` (`grid env clone`), not as a fourth env.
  */
 export const CANONICAL_ENVIRONMENTS = ['development', 'staging', 'production'] as const;
 export type CanonicalEnvironment = (typeof CANONICAL_ENVIRONMENTS)[number];

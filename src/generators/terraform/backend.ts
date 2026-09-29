@@ -3,10 +3,7 @@ import { GridConfig } from '../../validators/config';
 export type TerraformBackendMode = 'local' | 's3';
 
 export interface BackendOptions {
-  /**
-   * Override via env GRID_TF_BACKEND=local|s3
-   * Default: local (demo / cost-safe).
-   */
+  /** Override via GRID_TF_BACKEND=local|s3. Default: local. */
   mode?: TerraformBackendMode;
   stateBucket?: string;
   lockTable?: string;
@@ -14,13 +11,8 @@ export interface BackendOptions {
 }
 
 /**
- * Resolve backend mode from options or environment.
- *
- * Toggle to S3 later:
- *   GRID_TF_BACKEND=s3
- *   GRID_TF_STATE_BUCKET=my-bucket
- *   GRID_TF_LOCK_TABLE=my-lock-table
- *   GRID_TF_STATE_REGION=ap-south-1
+ * Resolve Terraform backend settings from options or env
+ * (GRID_TF_BACKEND, GRID_TF_STATE_BUCKET, GRID_TF_LOCK_TABLE, GRID_TF_STATE_REGION).
  */
 export function resolveBackendOptions(
   config: Pick<GridConfig, 'provider' | 'project' | 'region'>,
@@ -30,8 +22,7 @@ export function resolveBackendOptions(
     process.env.GRID_TF_BACKEND ||
     'local') as TerraformBackendMode;
 
-  // Region for S3 state backend only (AWS-hosted remote state).
-  // Defaults stay AWS-centric even when generating non-AWS infra later.
+  // S3 remote-state region only; default stays AWS-centric for the state backend.
   const stateRegion =
     overrides.stateRegion ||
     process.env.GRID_TF_STATE_REGION ||

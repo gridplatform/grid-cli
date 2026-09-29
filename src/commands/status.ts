@@ -10,7 +10,7 @@ import path from 'path';
 import fs from 'fs-extra';
 
 /**
- * grid status — workspace status, or desired-state diff with --config-dir
+ * grid status — archive/workspace status, or desired-state diff with --config-dir
  */
 export function statusCommand(program: Command) {
   program
@@ -29,7 +29,7 @@ export function statusCommand(program: Command) {
           await statusConfigDir(options.configDir);
           return;
         }
-        // Prefer desired-state root when Core/env/`grid init` project is available.
+        // Prefer desired-state root when GRID_CONFIG_ROOT / grid init project is set.
         try {
           const root = resolveConfigRoot();
           await statusConfigDir(root);

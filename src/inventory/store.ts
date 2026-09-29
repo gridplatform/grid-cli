@@ -16,11 +16,8 @@ const SKIP_BASENAMES = new Set([
 /**
  * Resolve desired-state root.
  *
- * Product rule: **grid-core** owns `GRID_CONFIG_ROOT` for real installs and injects
- * it when spawning the CLI. Locally:
- *   --config-dir | GRID_CONFIG_ROOT | `grid init` project (cwd↑) | demo (test only)
- *
- * `demo-infra` is a **test fixture**, never the product default without GRID_USE_DEMO=1.
+ * Order: --config-dir | GRID_CONFIG_ROOT | nearest `grid init` project | demo fixture
+ * when GRID_USE_DEMO=1. demo-infra is test-only, not a product default.
  */
 export function resolveConfigRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
@@ -58,9 +55,9 @@ export function inventoryPath(configRoot: string): string {
 }
 
 /**
- * Terraform workspace for a desired-state unit =
+ * Terraform workspace for a unit:
  *   <configRoot>/archive/<cloud>/<env>/<type>/<name>/
- * mirroring the JSON path (without .json). Kept in Git as the Grid exit buffer.
+ * mirroring the unit JSON path (without .json).
  */
 export function workspaceDirFor(configRoot: string, configPath: string): string {
   const abs = path.isAbsolute(configPath) ? configPath : path.join(configRoot, configPath);
@@ -89,7 +86,7 @@ export async function loadInventory(configRoot: string): Promise<InventoryFile> 
 export async function saveInventory(inv: InventoryFile): Promise<void> {
   const file = inventoryPath(inv.configRoot);
   await fs.ensureDir(path.dirname(file));
-  // Keep local CLI state out of Git
+  // .grid/ is local CLI state; keep it out of Git
   const gi = path.join(inv.configRoot, '.grid', '.gitignore');
   if (!(await fs.pathExists(gi))) {
     await fs.writeFile(gi, '*\n!.gitignore\n');
@@ -157,7 +154,7 @@ export async function discoverDesiredUnits(configRoot: string): Promise<DesiredU
       }
       const abs = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        // Skip misplaced / legacy buffers that still carry the marker
+        // Skip dirs that already look like an archive buffer (have the marker)
         if (await fs.pathExists(path.join(abs, GENERATED_MARKER))) continue;
         await walk(abs);
         continue;
@@ -172,7 +169,7 @@ export async function discoverDesiredUnits(configRoot: string): Promise<DesiredU
       } catch {
         continue;
       }
-      // Must look like a Grid config (provider + resources)
+      // Require provider + resources[] so non-unit JSON is ignored
       if (typeof config.provider !== 'string' || !Array.isArray(config.resources)) {
         continue;
       }

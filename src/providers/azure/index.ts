@@ -1,7 +1,6 @@
 import type { GridConfig } from '../../validators/config';
 import type { ProviderAdapter } from '../types';
 
-/** Same generate path as every other cloud — catalog only. */
 export const azureProvider: ProviderAdapter = {
   id: 'azure',
   label: 'Microsoft Azure',

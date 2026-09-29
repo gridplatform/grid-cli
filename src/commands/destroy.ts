@@ -20,7 +20,7 @@ import { loadConfigWithDependencies } from '../config/resolveDependencies';
 const execAsync = promisify(exec);
 
 /**
- * grid destroy — terraform destroy against generated workspace (+ inventory cleanup)
+ * grid destroy — terraform destroy in the archive workspace; drop inventory row
  */
 export function destroyCommand(program: Command) {
   program

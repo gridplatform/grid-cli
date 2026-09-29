@@ -10,7 +10,7 @@ import {
   EPHEMERAL_DIR,
 } from '../project/marker';
 
-/** Clouds scaffolded by grid init (same layout as grid-config / demo-infra). */
+/** Clouds scaffolded by grid init (same <cloud>/<env>/… layout as platform desired-state). */
 const INIT_CLOUDS = ['aws', 'gcp'] as const;
 
 /**
