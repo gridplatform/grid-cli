@@ -93,7 +93,7 @@ export function renderCatalogResources(
     .filter((r) => !foldedAway.has(r))
     .map((resource) => {
       const kids = childrenByParent.get(parentKey(resource.type, resource.name)) ?? [];
-      return renderCatalogResource(provider, resource, defaults, kids);
+      return renderCatalogResource(provider, resource, defaults, kids, resources);
     })
     .filter((block) => block.trim().length > 0);
 
@@ -110,7 +110,8 @@ export function renderCatalogResource(
   provider: ProviderId,
   resource: Resource,
   defaults: CatalogRenderDefaults,
-  foldedChildren: Resource[] = []
+  foldedChildren: Resource[] = [],
+  stack: Resource[] = []
 ): string {
   const entry = requireCatalogEntry(provider, resource.type);
   if (entry.foldInto) {
@@ -129,7 +130,7 @@ export function renderCatalogResource(
     // Grid JSON may carry docs fields (e.g. description) that only some modules accept.
     // When we know the module's variables.tf, skip anything undeclared.
     if (declared !== null && !declared.has(dest)) continue;
-    variables[dest] = toHclValue(value);
+    variables[dest] = moduleInputValue(dest, value);
   }
 
   if (!omit.has('name')) {
@@ -162,7 +163,68 @@ export function renderCatalogResource(
     );
   }
 
+  // Same-stack logical names → module outputs (subnet/vpc/sg). Real cloud ids pass through.
+  bindStackRefs(provider, variables, stack.length > 0 ? stack : [resource]);
+
   return renderModuleCall(moduleLabel(resource), variables);
+}
+
+/** `tags: ["a","b"]` → `{ a = "true", b = "true" }`; everything else unchanged. */
+function moduleInputValue(dest: string, value: unknown): HclValue {
+  if (dest === 'tags' && Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+    return Object.fromEntries((value as string[]).map((t) => [t, 'true']));
+  }
+  return toHclValue(value);
+}
+
+/**
+ * Bind Grid resource names to Terraform module outputs within one generated stack.
+ * O(R) index + O(1) lookups. No-op for non-AWS and for values that already look like cloud ids.
+ */
+function bindStackRefs(
+  provider: ProviderId,
+  variables: Record<string, HclValue>,
+  stack: Resource[]
+): void {
+  if (provider !== 'aws') return;
+
+  const byKey = new Map(stack.map((r) => [`${r.type}:${r.name}`, r]));
+  const subnetsOf = new Map<string, Resource[]>();
+  for (const r of stack) {
+    if (r.type !== 'subnet') continue;
+    const vpc = String((r as { vpc?: unknown }).vpc ?? '');
+    if (!vpc) continue;
+    const list = subnetsOf.get(vpc) ?? [];
+    list.push(r);
+    subnetsOf.set(vpc, list);
+  }
+
+  const subnet = variables.subnet_id;
+  if (typeof subnet === 'string' && !subnet.startsWith('subnet-')) {
+    const node = byKey.get(`subnet:${subnet}`);
+    const vpc = node ? String((node as { vpc?: unknown }).vpc ?? '') : '';
+    if (node && vpc && byKey.has(`vpc:${vpc}`)) {
+      const idx = Math.max(0, (subnetsOf.get(vpc) ?? []).findIndex((s) => s.name === node.name));
+      variables.subnet_id = {
+        raw: `module.${moduleLabel({ type: 'vpc', name: vpc } as Resource)}.public_subnet_ids[${idx}]`,
+      };
+    }
+  }
+
+  const vpcId = variables.vpc_id;
+  if (typeof vpcId === 'string' && !vpcId.startsWith('vpc-')) {
+    const vpc = byKey.get(`vpc:${vpcId}`);
+    if (vpc) variables.vpc_id = { raw: `module.${moduleLabel(vpc)}.vpc_id` };
+  }
+
+  const sgs = variables.vpc_security_group_ids;
+  if (Array.isArray(sgs)) {
+    variables.vpc_security_group_ids = sgs.map((id) => {
+      if (typeof id !== 'string' || id.startsWith('sg-')) return id as HclValue;
+      const sg = byKey.get(`security-group:${id}`);
+      return sg ? { raw: `module.${moduleLabel(sg)}.security_group_id` } : id;
+    });
+  }
 }
 
 function applyFoldedChildren(
