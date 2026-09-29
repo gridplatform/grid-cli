@@ -14,11 +14,12 @@ import {
   type CloneManifest,
   type CanonicalEnvironment,
 } from '../project/marker';
-import { ephemeralCloneDirName, parseEphemeralCloneDirName } from '../project/environments';
+import { parseEphemeralCloneDirName } from '../project/environments';
+import { ARCHIVE_DIR } from '../config/artifacts';
 
 /**
- * grid env — list canonical envs / clone development (etc.) with TTL for isolated tests.
- * No sandbox env: use clones under .ephemeral/ so shared development is not contested.
+ * grid env — list canonical envs / clone with TTL.
+ * Desired-state layout: <cloud>/<env>/<infra-type>/<name>.json
  */
 export function envCommand(program: Command) {
   const env = program.command('env').description('Canonical environments and ephemeral clones');
@@ -32,13 +33,11 @@ export function envCommand(program: Command) {
         const root = resolveConfigRoot(options.configDir);
         console.log(chalk.bold(`\nCanonical environments (${root})\n`));
         for (const e of CANONICAL_ENVIRONMENTS) {
-          const dir = path.join(root, e);
-          const exists = await fs.pathExists(dir);
-          const stacks = exists ? await countStacks(dir) : 0;
+          const stacks = await countUnitsForEnv(root, e);
           console.log(
-            exists
-              ? chalk.green(`  • ${e}  (${stacks} stack folder(s))`)
-              : chalk.dim(`  • ${e}  (missing — run grid init)`)
+            stacks > 0
+              ? chalk.green(`  • ${e}  (${stacks} unit file(s))`)
+              : chalk.dim(`  • ${e}  (0 units)`)
           );
         }
 
@@ -58,13 +57,13 @@ export function envCommand(program: Command) {
           any = true;
           const cloneRoot = path.join(eph, ent.name);
           const manifest = await readCloneManifest(cloneRoot);
-          const stacks = await countStacks(cloneRoot);
+          const stacks = await countUnitsForEnv(cloneRoot, parsed.baseEnv);
           if (!manifest) {
-            console.log(chalk.yellow(`  • ${ent.name}  (${stacks} stacks, no manifest)`));
+            console.log(chalk.yellow(`  • ${ent.name}  (${stacks} units, no manifest)`));
             continue;
           }
           const expired = isCloneExpired(manifest);
-          const line = `  • ${ent.name}  base=${manifest.baseEnv}  ttl=${manifest.ttl}  expires=${manifest.expiresAt}  stacks=${stacks}`;
+          const line = `  • ${ent.name}  base=${manifest.baseEnv}  ttl=${manifest.ttl}  expires=${manifest.expiresAt}  units=${stacks}`;
           console.log(expired ? chalk.red(`${line}  EXPIRED`) : chalk.cyan(line));
         }
         if (!any) console.log(chalk.dim('  (none)'));
@@ -78,7 +77,7 @@ export function envCommand(program: Command) {
   env
     .command('clone')
     .description(
-      'Copy an environment (e.g. development) into .ephemeral/<env>--<name> with a TTL so tests do not contest shared resources'
+      'Copy an environment into .ephemeral/<env>--<name> with a TTL (isolated names; no sandbox env)'
     )
     .argument('<base>', 'Canonical env to copy: development | staging | production')
     .requiredOption('--name <slug>', 'Clone slug (letters, numbers, dashes)')
@@ -94,9 +93,12 @@ export function envCommand(program: Command) {
           const baseEnv = assertCanonicalEnv(base);
           const slug = normalizeSlug(options.name);
           const root = resolveConfigRoot(options.configDir);
-          const sourceDir = path.join(root, baseEnv);
-          if (!(await fs.pathExists(sourceDir))) {
-            throw new Error(`Source env folder not found: ${sourceDir}`);
+          const units = await listUnitFilesForEnv(root, baseEnv);
+          if (units.length === 0) {
+            throw new Error(
+              `No units found for environment "${baseEnv}" under ${root} ` +
+                `(expected <cloud>/${baseEnv}/<type>/<name>.json)`
+            );
           }
 
           const dest = cloneRootPath(root, baseEnv, slug);
@@ -112,7 +114,7 @@ export function envCommand(program: Command) {
           await fs.ensureDir(dest);
 
           const suffix = `-${slug}`;
-          const copied = await copyEnvStacks(sourceDir, dest, {
+          const copied = await copyUnitsToClone(root, dest, units, {
             baseEnv,
             slug,
             nameSuffix: suffix,
@@ -123,7 +125,7 @@ export function envCommand(program: Command) {
             kind: 'grid-env-clone',
             baseEnv,
             slug,
-            sourcePath: toPosix(path.relative(root, sourceDir)),
+            sourcePath: baseEnv,
             createdAt: createdAt.toISOString(),
             expiresAt: expiresAt.toISOString(),
             ttl: options.ttl,
@@ -131,15 +133,13 @@ export function envCommand(program: Command) {
           await fs.writeJSON(path.join(dest, '.grid-clone.json'), manifest, { spaces: 2 });
 
           console.log(chalk.green(`\nCloned ${baseEnv} → ${toPosix(path.relative(root, dest))}`));
-          console.log(chalk.gray(`  stacks:  ${copied}`));
+          console.log(chalk.gray(`  units:   ${copied}`));
           console.log(chalk.gray(`  TTL:     ${options.ttl} (expires ${manifest.expiresAt})`));
-          console.log(chalk.gray(`  names:   resources suffixed with "${suffix}" to avoid collisions`));
+          console.log(chalk.gray(`  names:   resources suffixed with "${suffix}"`));
           console.log(`
-${chalk.bold('Next')}
-  grid generate -c ${EPHEMERAL_DIR}/${ephemeralCloneDirName(baseEnv, slug)}/<stack>/grid.json \\
-    --config-dir ${root} -o ./out
-
-  When done (or after TTL): remove the folder or grid env prune-expired
+${chalk.bold('Next')} (use the clone folder as --config-dir)
+  grid generate -c aws/${baseEnv}/ec2/<name>${suffix}.json \\
+    --config-dir ${dest} -o ./out
 `);
         } catch (error) {
           console.error(chalk.red(error instanceof Error ? error.message : String(error)));
@@ -201,48 +201,74 @@ function normalizeSlug(raw: string): string {
   return slug;
 }
 
-async function countStacks(envDir: string): Promise<number> {
-  const entries = await fs.readdir(envDir, { withFileTypes: true });
-  let n = 0;
-  for (const ent of entries) {
-    if (!ent.isDirectory()) continue;
-    if (ent.name.startsWith('.')) continue;
-    if (await fs.pathExists(path.join(envDir, ent.name, 'grid.json'))) n += 1;
+/** List <cloud>/<env>/<type>/<file>.json relative paths. */
+async function listUnitFilesForEnv(configRoot: string, env: string): Promise<string[]> {
+  const found: string[] = [];
+  if (!(await fs.pathExists(configRoot))) return found;
+  const top = await fs.readdir(configRoot, { withFileTypes: true });
+  for (const cloudEnt of top) {
+    if (!cloudEnt.isDirectory()) continue;
+    if (cloudEnt.name.startsWith('.') || cloudEnt.name === 'scripts' || cloudEnt.name === ARCHIVE_DIR) {
+      continue;
+    }
+    if ((CANONICAL_ENVIRONMENTS as readonly string[]).includes(cloudEnt.name)) continue;
+    const envDir = path.join(configRoot, cloudEnt.name, env);
+    if (!(await fs.pathExists(envDir))) continue;
+    const types = await fs.readdir(envDir, { withFileTypes: true });
+    for (const typeEnt of types) {
+      if (!typeEnt.isDirectory()) continue;
+      const typeDir = path.join(envDir, typeEnt.name);
+      const files = await fs.readdir(typeDir);
+      for (const f of files) {
+        if (!f.endsWith('.json') || f.startsWith('.')) continue;
+        found.push(toPosix(path.join(cloudEnt.name, env, typeEnt.name, f)));
+      }
+    }
   }
-  return n;
+  return found.sort();
 }
 
-async function copyEnvStacks(
-  sourceEnvDir: string,
-  destEnvDir: string,
+async function countUnitsForEnv(configRoot: string, env: string): Promise<number> {
+  return (await listUnitFilesForEnv(configRoot, env)).length;
+}
+
+async function copyUnitsToClone(
+  configRoot: string,
+  cloneRoot: string,
+  relPaths: string[],
   opts: { baseEnv: CanonicalEnvironment; slug: string; nameSuffix: string }
 ): Promise<number> {
-  const entries = await fs.readdir(sourceEnvDir, { withFileTypes: true });
-  let copied = 0;
-  for (const ent of entries) {
-    if (!ent.isDirectory() || ent.name.startsWith('.')) continue;
-    const srcJson = path.join(sourceEnvDir, ent.name, 'grid.json');
-    if (!(await fs.pathExists(srcJson))) continue;
-
-    const destStack = `${ent.name}${opts.nameSuffix}`;
-    const destDir = path.join(destEnvDir, destStack);
-    await fs.ensureDir(destDir);
-
-    const raw = (await fs.readJSON(srcJson)) as Record<string, unknown>;
-    const rewritten = rewriteCloneConfig(raw, opts);
-    await fs.writeJSON(path.join(destDir, 'grid.json'), rewritten, { spaces: 2 });
-    copied += 1;
+  const pathMap = new Map<string, string>();
+  for (const rel of relPaths) {
+    const parts = rel.split('/');
+    // cloud/env/type/file.json
+    if (parts.length < 4) continue;
+    const file = parts[parts.length - 1];
+    const base = file.replace(/\.json$/, '');
+    const newFile = `${base}${opts.nameSuffix}.json`;
+    const newRel = [...parts.slice(0, -1), newFile].join('/');
+    pathMap.set(rel, newRel);
   }
-  if (copied === 0) {
-    throw new Error(`No grid.json stacks found under ${sourceEnvDir}`);
+
+  let copied = 0;
+  for (const rel of relPaths) {
+    const newRel = pathMap.get(rel);
+    if (!newRel) continue;
+    const src = path.join(configRoot, rel);
+    const dest = path.join(cloneRoot, newRel);
+    await fs.ensureDir(path.dirname(dest));
+    const raw = (await fs.readJSON(src)) as Record<string, unknown>;
+    const rewritten = rewriteCloneConfig(raw, opts, pathMap);
+    await fs.writeJSON(dest, rewritten, { spaces: 2 });
+    copied += 1;
   }
   return copied;
 }
 
-/** Suffix resource names + fix vpc/subnet refs; tag metadata.clone with TTL context. */
 function rewriteCloneConfig(
   config: Record<string, unknown>,
-  opts: { baseEnv: CanonicalEnvironment; slug: string; nameSuffix: string }
+  opts: { baseEnv: CanonicalEnvironment; slug: string; nameSuffix: string },
+  pathMap: Map<string, string>
 ): Record<string, unknown> {
   const resources = Array.isArray(config.resources) ? config.resources : [];
   const nameMap = new Map<string, string>();
@@ -274,11 +300,14 @@ function rewriteCloneConfig(
     meta.name = `${meta.name}${opts.nameSuffix}`;
   }
   meta.environment = opts.baseEnv;
-  meta.clone = {
-    of: opts.baseEnv,
-    slug: opts.slug,
-    isolated: true,
-  };
+  meta.clone = { of: opts.baseEnv, slug: opts.slug, isolated: true };
+
+  if (Array.isArray(meta.dependsOn)) {
+    meta.dependsOn = meta.dependsOn.map((d) => {
+      if (typeof d !== 'string') return d;
+      return pathMap.get(toPosix(d)) || d;
+    });
+  }
 
   return {
     ...config,

@@ -6,6 +6,9 @@ import fs from 'fs-extra';
  *
  * Product rule: **grid-core** owns this path (`GRID_MODULE_BANK`) and injects it
  * when spawning the CLI. Standalone fallback: sibling ../grid-terraform.
+ *
+ * The bank is **read-only** for generate: we copy/link modules INTO archive/,
+ * we never write Grid JSON changes back into the bank.
  */
 export function resolveModuleBankRoot(): string {
   if (process.env.GRID_MODULE_BANK) {
@@ -37,7 +40,8 @@ export type ModuleInstallMode = 'link' | 'copy';
  */
 export async function copyModulesFromBank(
   outputModulesDir: string,
-  specs: ModuleCopySpec[]
+  specs: ModuleCopySpec[],
+  options?: { mode?: ModuleInstallMode }
 ): Promise<{ installed: string[]; mode: ModuleInstallMode }> {
   const bankRoot = resolveModuleBankRoot();
   if (!(await fs.pathExists(bankRoot))) {
@@ -47,7 +51,10 @@ export async function copyModulesFromBank(
     );
   }
 
-  const forceCopy = process.env.GRID_MODULE_COPY === '1' || process.env.GRID_MODULE_COPY === 'true';
+  const forceCopy =
+    options?.mode === 'copy' ||
+    process.env.GRID_MODULE_COPY === '1' ||
+    process.env.GRID_MODULE_COPY === 'true';
 
   const results = await Promise.all(
     specs.map(async (spec) => {

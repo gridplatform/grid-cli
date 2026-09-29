@@ -14,6 +14,7 @@ import {
   toPosix,
   workspaceDirFor,
 } from '../inventory/store';
+import { artifactDirForConfig } from '../config/artifacts';
 import { loadConfigWithDependencies } from '../config/resolveDependencies';
 
 const execAsync = promisify(exec);
@@ -26,8 +27,11 @@ export function destroyCommand(program: Command) {
     .command('destroy')
     .description('Destroy infrastructure managed by a Grid-generated Terraform workspace')
     .option('-c, --config <path>', 'Path to Grid configuration file (JSON)', 'grid.json')
-    .option('-o, --output <dir>', 'Output directory with Terraform state', './generated')
-    .option('--config-dir <path>', 'Desired-state root (for inventory + workspace lookup)')
+    .option(
+      '-o, --output <dir>',
+      'Terraform dir (default: <config-root>/archive/<same-path-as-json>/)'
+    )
+    .option('--config-dir <path>', 'Desired-state root (for inventory + archive/ lookup)')
     .option('--format <format>', 'IaC tool (terraform|opentofu)', 'terraform')
     .option('--auto-approve', 'Skip confirmation prompt', false)
     .option('--skip-generate', 'Skip regenerating files before destroy', false)
@@ -42,13 +46,23 @@ export function destroyCommand(program: Command) {
           ? resolveConfigRoot(options.configDir)
           : inferConfigRootFromPath(configPath);
 
-        let outputDir = path.resolve(options.output);
+        let outputDir: string;
         let rel: string | undefined;
         if (configRoot && (await fs.pathExists(configPath))) {
           rel = toPosix(path.relative(configRoot, configPath));
-          if (!rel.startsWith('..')) {
+          if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
             outputDir = workspaceDirFor(configRoot, rel);
+          } else if (options.output) {
+            outputDir = path.resolve(options.output);
+          } else {
+            throw new Error('Config outside desired-state root — pass -o <dir>');
           }
+        } else if (options.output) {
+          outputDir = path.resolve(options.output);
+        } else if (configRoot) {
+          outputDir = artifactDirForConfig(configPath, configRoot);
+        } else {
+          throw new Error('Pass --config-dir or -o <dir> for destroy');
         }
 
         if (!fs.existsSync(outputDir)) {
@@ -65,6 +79,7 @@ export function destroyCommand(program: Command) {
           await generateInfrastructure(resolved.config, {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
+            moduleInstallMode: 'copy',
           });
         }
 

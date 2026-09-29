@@ -4,9 +4,15 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
 import { loadConfigWithDependencies } from '../config/resolveDependencies';
+import { ARCHIVE_DIR, artifactDirForConfig, writeArtifactMeta } from '../config/artifacts';
+import { inferConfigRootFromPath, resolveConfigRoot, toPosix } from '../inventory/store';
 
 /**
  * Register the 'generate' command
+ *
+ * Default output: <configRoot>/archive/<cloud>/<env>/<type>/<name>/
+ * mirroring the JSON path. Pass -o for scratch (e.g. /tmp).
+ * Archive writes always copy modules (Grid exit path).
  */
 export function generateCommand(program: Command) {
   program
@@ -16,10 +22,13 @@ export function generateCommand(program: Command) {
     .option('-c, --config <path>', 'Path to Grid configuration file (JSON)', 'grid.json')
     .option(
       '--config-dir <path>',
-      'Desired-state root (resolves metadata.dependsOn for split vpc/vm files)'
+      'Desired-state root (resolves metadata.dependsOn; owns archive/ buffer)'
     )
-    .option('-o, --output <dir>', 'Output directory for generated files', './generated')
-    .option('--format <format>', 'Output format (terraform|opentofu)', 'opentofu')
+    .option(
+      '-o, --output <dir>',
+      `Output directory (default: <config-root>/${ARCHIVE_DIR}/<same-path-as-json>/)`
+    )
+    .option('--format <format>', 'Output format (terraform|opentofu)', 'terraform')
     .action(async (options) => {
       const ora = (await import('ora')).default;
       const spinner = ora('Generating infrastructure files...').start();
@@ -31,18 +40,64 @@ export function generateCommand(program: Command) {
           configDir: options.configDir,
         });
 
-        spinner.text = 'Generating Terraform files...';
-        const outputDir = path.resolve(options.output);
+        const configRoot =
+          (options.configDir ? resolveConfigRoot(options.configDir) : undefined) ||
+          resolved.configRoot ||
+          inferConfigRootFromPath(configPath);
+
+        const inArchive = !options.output;
+        if (inArchive && !configRoot) {
+          throw new Error(
+            'Cannot resolve desired-state root for archive/ output. ' +
+              'Pass --config-dir, set GRID_CONFIG_ROOT, or use -o <dir> for scratch.'
+          );
+        }
+
+        const outputDir = inArchive
+          ? artifactDirForConfig(configPath, configRoot!)
+          : path.resolve(options.output);
+
+        const rel = configRoot
+          ? toPosix(path.relative(configRoot, configPath))
+          : path.basename(configPath);
+
+        spinner.text = inArchive
+          ? `Writing ${ARCHIVE_DIR}/ buffer → ${outputDir}`
+          : 'Generating Terraform files...';
         await fs.ensureDir(outputDir);
+
+        if (inArchive) {
+          await writeArtifactMeta(outputDir, {
+            configPath: rel,
+            format: options.format,
+          });
+        }
 
         const result = await generateInfrastructure(resolved.config, {
           outputDir,
           format: options.format as 'terraform' | 'opentofu',
+          moduleInstallMode: inArchive ? 'copy' : undefined,
         });
 
         spinner.succeed(
-          chalk.green(`Successfully generated ${result.fileCount} file(s) to ${outputDir}`)
+          chalk.green(
+            inArchive
+              ? `Updated archive instance Terraform from JSON → ${toPosix(path.relative(configRoot!, outputDir))}`
+              : `Successfully generated ${result.fileCount} file(s) to ${outputDir}`
+          )
         );
+        if (inArchive) {
+          console.log(
+            chalk.gray(
+              `  Rewrote main.tf / provider.tf / … from JSON. Vendored ./modules from bank (bank unchanged).`
+            )
+          );
+          console.log(
+            chalk.gray(
+              `  Deploy from ${ARCHIVE_DIR}/… — without Grid: terraform -chdir=<that-dir> init && plan`
+            )
+          );
+        }
 
         const warnings = [...(resolved.warnings || []), ...(result.warnings || [])];
         if (warnings.length > 0) {
