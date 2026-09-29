@@ -44,10 +44,10 @@ grid generate --config examples/simple-vpc-vm.json --output ./generated --format
 grid validate --config examples/aws-s3-bucket.json
 ```
 
-Canonical demos (by environment) and a no-apply smoke script live in
-[`../demo-infra`](../demo-infra/README.md). Step-by-step AWS/GCP plan & deploy:
-[`../docs/CLI_AWS_GCP.md`](../docs/CLI_AWS_GCP.md). Product design for Admin /
-environments / approvals (website, later): [`../docs/ADMIN_RBAC.md`](../docs/ADMIN_RBAC.md).
+Sample desired-state: [grid-config](https://github.com/gridplatform/grid-config).
+Step-by-step AWS/GCP plan & deploy: [grid-docs → CLI](https://github.com/gridplatform/grid-docs/blob/main/docs/cli/aws-gcp.md).
+Admin / environments / approvals: [grid-docs → Admin RBAC](https://github.com/gridplatform/grid-docs/blob/main/docs/admin/rbac.md).
+Self-host install: [grid-docs → Install](https://github.com/gridplatform/grid-docs/tree/main/docs/install).
 
 ## Example config
 
