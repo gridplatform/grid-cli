@@ -80,8 +80,10 @@ export function resolveModuleBankRoot(): string {
 }
 
 /**
- * Ensure the module bank is available locally. Remote `GRID_MODULE_BANK` URLs
- * are cloned/pulled into the cache directory (ff-only).
+ * Ensure the module bank is available locally.
+ *
+ * Remote URLs: clone once into the cache dir. Do **not** pull on every generate —
+ * Core (or GRID_MODULE_BANK_PULL=1) owns refresh so VM/PVC installs stay fast.
  */
 export async function ensureModuleBankRoot(): Promise<string> {
   const raw = (process.env.GRID_MODULE_BANK || '').trim();
@@ -101,15 +103,20 @@ export async function ensureModuleBankRoot(): Promise<string> {
   const ref = moduleBankRef();
   await fs.ensureDir(path.dirname(dest));
 
+  const allowPull =
+    process.env.GRID_MODULE_BANK_PULL === '1' ||
+    process.env.GRID_MODULE_BANK_PULL === 'true';
+
   const gitDir = path.join(dest, '.git');
   if (await fs.pathExists(gitDir)) {
-    await runGit(['remote', 'set-url', 'origin', url], dest);
-    const pull = await runGit(['pull', '--ff-only', 'origin', ref], dest);
-    if (pull.code !== 0) {
-      // Keep existing cache; generate can still use it.
-      console.warn(
-        `[grid] module-bank ff-only pull skipped (${pull.stderr || pull.stdout || 'diverged'}). Using cache at ${dest}`
-      );
+    if (allowPull) {
+      await runGit(['remote', 'set-url', 'origin', url], dest);
+      const pull = await runGit(['pull', '--ff-only', 'origin', ref], dest);
+      if (pull.code !== 0) {
+        console.warn(
+          `[grid] module-bank ff-only pull skipped (${pull.stderr || pull.stdout || 'diverged'}). Using cache at ${dest}`
+        );
+      }
     }
     return dest;
   }
