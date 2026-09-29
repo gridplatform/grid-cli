@@ -80,10 +80,9 @@ export const GridConfigSchema = z.object({
     .object({
       name: z.string().optional(),
       description: z.string().optional(),
-      // Canonical: development | sandbox | staging | production
-      // Aliases kept for older samples: dev → development, prod → production
+      // Canonical: development | staging | production (no sandbox — use env clone + TTL)
       environment: z
-        .enum(['development', 'sandbox', 'staging', 'production', 'dev', 'prod'])
+        .enum(['development', 'staging', 'production', 'dev', 'prod'])
         .optional(),
       /** Optional service account email (e.g. GCP VMs) — passed via metadata or env */
       serviceAccountEmail: z.string().email().or(z.literal('REPLACE_WITH_SA_EMAIL')).optional(),

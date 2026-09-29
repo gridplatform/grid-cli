@@ -12,6 +12,8 @@ import { version } from '../package.json';
 type CommandRegistrar = (program: Command) => void;
 
 const COMMAND_LOADERS: Record<string, () => Promise<CommandRegistrar>> = {
+  init: async () => (await import('./commands/init')).initCommand,
+  env: async () => (await import('./commands/env')).envCommand,
   generate: async () => (await import('./commands/generate')).generateCommand,
   gen: async () => (await import('./commands/generate')).generateCommand,
   plan: async () => (await import('./commands/plan')).planCommand,
@@ -24,6 +26,8 @@ const COMMAND_LOADERS: Record<string, () => Promise<CommandRegistrar>> = {
 };
 
 const ALL_COMMAND_KEYS = [
+  'init',
+  'env',
   'generate',
   'plan',
   'deploy',
