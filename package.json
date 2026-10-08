@@ -7,15 +7,17 @@
     "grid": "./bin/grid.js"
   },
   "scripts": {
-    "grid": "node ./bin/grid.js",
-    "dev": "tsx watch src/index.ts",
+    "grid": "GRID_APP_ENV=development node ./bin/grid.js",
+    "dev": "GRID_APP_ENV=development tsx watch src/index.ts",
+    "prod": "GRID_APP_ENV=production npm run build && GRID_APP_ENV=production node ./bin/grid.js",
     "build": "tsc",
-    "start": "node ./bin/grid.js",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "start": "GRID_APP_ENV=production node ./bin/grid.js",
+    "start:prod": "GRID_APP_ENV=production node ./bin/grid.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "format": "prettier --write src/**/*.ts",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "npm run build"
@@ -49,21 +51,20 @@
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
+    "@eslint/js": "^10.0.1",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.3",
-    "@typescript-eslint/eslint-plugin": "^6.13.1",
-    "@typescript-eslint/parser": "^6.13.1",
-    "eslint": "^8.54.0",
+    "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.0.1",
     "prettier": "^3.1.0",
-    "typescript": "^5.3.2",
     "tsx": "^4.7.0",
-    "vitest": "^1.0.4",
-    "@vitest/coverage-v8": "^1.0.4"
+    "typescript": "^5.3.2",
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
   }
 }
-

@@ -27,6 +27,11 @@ export interface CatalogRenderDefaults {
   region: string;
   /** Reference-only dependsOn units (remote state + name → id binding). */
   dependencies?: ResolvedDependency[];
+  /**
+   * Resolve Terraform module `source` for a bank path (e.g. "aws/vpc").
+   * Default: ./modules/<path>. Remote mode uses git::URL//path?ref=.
+   */
+  moduleSourceForPath?: (modulePath: string) => string;
 }
 
 const META_KEYS = new Set(['type']);
@@ -226,8 +231,10 @@ export function renderCatalogResource(
 
   const declared = moduleVariableNames(entry.modulePath);
   const omit = new Set(entry.omitInputs ?? []);
+  const source =
+    defaults.moduleSourceForPath?.(entry.modulePath) ?? `./modules/${entry.modulePath}`;
   const variables: Record<string, HclValue> = {
-    source: `./modules/${entry.modulePath}`,
+    source,
   };
 
   if (wants(declared, 'name', variables)) {

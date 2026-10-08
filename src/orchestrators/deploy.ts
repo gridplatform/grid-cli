@@ -95,7 +95,7 @@ export async function deployInfrastructure(options: DeployOptions): Promise<void
 async function verifyToolInstalled(tool: 'terraform' | 'tofu'): Promise<void> {
   try {
     await execAsync(`${tool} --version`);
-  } catch (error) {
+  } catch {
     throw new Error(
       `${tool} is not installed. Please install it first:\n` +
       `  - Terraform: https://terraform.io/downloads\n` +

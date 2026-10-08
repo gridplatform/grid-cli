@@ -79,7 +79,6 @@ export function destroyCommand(program: Command) {
           await generateInfrastructure(resolved.config, {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
-            moduleInstallMode: 'copy',
             configRoot: options.configDir
               ? resolveConfigRoot(options.configDir)
               : resolved.configRoot,

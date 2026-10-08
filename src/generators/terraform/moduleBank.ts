@@ -8,12 +8,14 @@ import fs from 'fs-extra';
  *
  * Prefer `GRID_MODULE_BANK` (injected by grid-core). Value may be:
  * - a local filesystem path (legacy sibling checkout), or
- * - a git remote URL (https://… or git@…) — cloned into a local cache, then used as a path.
+ * - a git remote URL (https://… or git@…).
  *
- * Generate only copies/links out of the resolved local bank tree.
+ * When the bank is a git URL, generated stacks reference modules via
+ * `git::URL//path?ref=` (no ./modules vendor). A local cache is still used
+ * only to introspect module variables at generate time.
  */
 
-function isGitRemote(value: string): boolean {
+export function isGitRemote(value: string): boolean {
   const v = value.trim();
   if (!v) return false;
   if (/^git::/i.test(v)) return true;
@@ -25,6 +27,64 @@ function isGitRemote(value: string): boolean {
 
 function normalizeRemoteUrl(raw: string): string {
   return raw.trim().replace(/^git::/i, '');
+}
+
+/** True when GRID_MODULE_BANK is configured as a git remote URL. */
+export function moduleBankIsGitRemote(): boolean {
+  const raw = (process.env.GRID_MODULE_BANK || '').trim();
+  return Boolean(raw && isGitRemote(raw));
+}
+
+/**
+ * How modules are attached to generated stacks:
+ * - remote — Terraform `git::…//path?ref=` (no ./modules vendor) — default when bank is a git URL
+ * - copy   — vendor a full copy under ./modules (air‑gapped / portable)
+ * - link   — symlink ./modules to local bank (fast scratch)
+ *
+ * Override with GRID_MODULE_SOURCE=remote|copy|link.
+ * Legacy: GRID_MODULE_COPY=1 forces copy.
+ */
+export type ModuleInstallMode = 'remote' | 'link' | 'copy';
+
+export function resolveModuleInstallMode(
+  explicit?: ModuleInstallMode | undefined
+): ModuleInstallMode {
+  if (explicit) return explicit;
+
+  const fromEnv = (process.env.GRID_MODULE_SOURCE || '').trim().toLowerCase();
+  if (fromEnv === 'remote' || fromEnv === 'copy' || fromEnv === 'link') {
+    return fromEnv;
+  }
+  if (process.env.GRID_MODULE_COPY === '1' || process.env.GRID_MODULE_COPY === 'true') {
+    return 'copy';
+  }
+  // Public / git module bank → reference remotely (MonkCI-style). No archive bloat.
+  if (moduleBankIsGitRemote()) return 'remote';
+  return 'link';
+}
+
+/**
+ * Terraform module source for a bank-relative path (e.g. "aws/vpc").
+ * Example: git::https://github.com/gridplatform/grid-terraform.git//aws/vpc?ref=main
+ */
+export function remoteModuleSource(modulePath: string): string {
+  const raw = (process.env.GRID_MODULE_BANK || '').trim();
+  if (!raw || !isGitRemote(raw)) {
+    throw new Error(
+      'GRID_MODULE_SOURCE=remote requires GRID_MODULE_BANK to be a git URL ' +
+        '(e.g. https://github.com/gridplatform/grid-terraform.git).'
+    );
+  }
+  const url = normalizeRemoteUrl(raw).replace(/\/+$/, '');
+  const ref = moduleBankRef();
+  const sub = modulePath.replace(/^\/+/, '').replace(/\\/g, '/');
+  // terraform git source: git::https://host/repo.git//subdir?ref=tag
+  // Keep ref literal (tags/branches); do not URI-encode — Terraform expects e.g. ref=v0.1.0
+  return `git::${url}//${sub}?ref=${ref}`;
+}
+
+export function localModuleSource(modulePath: string): string {
+  return `./modules/${modulePath.replace(/^\/+/, '').replace(/\\/g, '/')}`;
 }
 
 function runGit(args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -148,17 +208,15 @@ export interface ModuleCopySpec {
   destPath: string;
 }
 
-export type ModuleInstallMode = 'link' | 'copy';
-
 /**
  * Install bank modules into the instance output's modules/ directory.
- * Default is symlink (fast); set GRID_MODULE_COPY=1 for a full copy (archive/deploy).
+ * Not used when mode is `remote` (sources point at the git module bank).
  */
 export async function copyModulesFromBank(
   outputModulesDir: string,
   specs: ModuleCopySpec[],
-  options?: { mode?: ModuleInstallMode }
-): Promise<{ installed: string[]; mode: ModuleInstallMode }> {
+  options?: { mode?: 'link' | 'copy' }
+): Promise<{ installed: string[]; mode: 'link' | 'copy' }> {
   const bankRoot = await ensureModuleBankRoot();
   if (!(await fs.pathExists(bankRoot))) {
     throw new Error(
@@ -167,10 +225,7 @@ export async function copyModulesFromBank(
     );
   }
 
-  const forceCopy =
-    options?.mode === 'copy' ||
-    process.env.GRID_MODULE_COPY === '1' ||
-    process.env.GRID_MODULE_COPY === 'true';
+  const forceCopy = options?.mode === 'copy';
 
   const results = await Promise.all(
     specs.map(async (spec) => {
@@ -199,7 +254,7 @@ export async function copyModulesFromBank(
     })
   );
 
-  const mode: ModuleInstallMode =
+  const mode: 'link' | 'copy' =
     results.length > 0 && results.every((r) => r.linked) ? 'link' : 'copy';
 
   return { installed: results.map((r) => r.destPath), mode };

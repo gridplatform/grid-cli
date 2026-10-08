@@ -6,6 +6,9 @@
  * Commands are lazy-loaded so cold start only pays for the command you run.
  */
 
+import { loadAppEnv } from './loadEnv';
+loadAppEnv();
+
 import { Command } from 'commander';
 import { version } from '../package.json';
 
@@ -14,6 +17,7 @@ type CommandRegistrar = (program: Command) => void;
 const COMMAND_LOADERS: Record<string, () => Promise<CommandRegistrar>> = {
   init: async () => (await import('./commands/init')).initCommand,
   env: async () => (await import('./commands/env')).envCommand,
+  admin: async () => (await import('./commands/admin')).adminCommand,
   generate: async () => (await import('./commands/generate')).generateCommand,
   gen: async () => (await import('./commands/generate')).generateCommand,
   plan: async () => (await import('./commands/plan')).planCommand,
@@ -28,6 +32,7 @@ const COMMAND_LOADERS: Record<string, () => Promise<CommandRegistrar>> = {
 const ALL_COMMAND_KEYS = [
   'init',
   'env',
+  'admin',
   'generate',
   'plan',
   'deploy',

@@ -57,5 +57,14 @@ grid generate -c …
 ```
 
 `bin/grid.js` rebuilds when `src/` changed, then runs the compiled CLI.
-Generate symlinks modules from `grid-terraform` by default; archive/deploy uses copy.
-For a portable copy without symlinks: `GRID_MODULE_COPY=1`.
+
+## Module sources
+
+| Mode | When | `source =` |
+|------|------|------------|
+| **remote** | Default if `GRID_MODULE_BANK` is a git URL | `git::https://…/grid-terraform.git//aws/vpc?ref=main` |
+| **link** | Default for local bank path | `./modules/…` (symlink) |
+| **copy** | `GRID_MODULE_SOURCE=copy` or `GRID_MODULE_COPY=1` | `./modules/…` (full copy) |
+
+Override: `GRID_MODULE_SOURCE=remote|copy|link` or `grid generate --module-source remote`.  
+Pin the bank with `GRID_MODULE_BANK_REF` (tag/commit recommended for prod).

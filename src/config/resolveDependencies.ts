@@ -220,7 +220,8 @@ async function readGridJson(absPath: string): Promise<GridConfig> {
     throw new Error(
       `Failed to read configuration ${absPath}: ${
         error instanceof Error ? error.message : String(error)
-      }`
+      }`,
+      { cause: error }
     );
   }
 }

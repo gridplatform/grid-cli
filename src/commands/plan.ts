@@ -70,7 +70,7 @@ export function planCommand(program: Command) {
           await generateInfrastructure(resolved.config, {
             outputDir,
             format: options.format as 'terraform' | 'opentofu',
-            moduleInstallMode: inArchive ? 'copy' : undefined,
+            // Default: remote git:: when GRID_MODULE_BANK is a URL (no ./modules vendor).
             configRoot: configRoot || undefined,
             unitRelPath: inArchive
               ? toPosix(path.relative(configRoot!, configPath))

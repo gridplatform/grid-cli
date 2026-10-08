@@ -7,7 +7,14 @@ import {
   renderCatalogResources,
   renderStackOutputs,
 } from './catalogResources';
-import { ModuleCopySpec, copyModulesFromBank, ensureModuleBankRoot } from './moduleBank';
+import {
+  ModuleInstallMode,
+  copyModulesFromBank,
+  ensureModuleBankRoot,
+  localModuleSource,
+  remoteModuleSource,
+  resolveModuleInstallMode,
+} from './moduleBank';
 import { bootstrapProviders } from '../../providers';
 import { assertProviderCanGenerate } from '../../providers/registry';
 import type { ResolvedDependency } from '../../config/resolveDependencies';
@@ -16,11 +23,12 @@ export interface GenerateOptions {
   outputDir: string;
   format: 'terraform' | 'opentofu';
   /**
-   * How to install bank modules into output/modules.
-   * - copy: self-contained (archive / deploy path)
-   * - link: symlink to grid-terraform (fast scratch)
+   * How modules are referenced:
+   * - remote: git:: bank URL (no ./modules) — default when GRID_MODULE_BANK is a git URL
+   * - copy: vendor under ./modules
+   * - link: symlink ./modules to local bank
    */
-  moduleInstallMode?: 'link' | 'copy';
+  moduleInstallMode?: ModuleInstallMode;
   /** Platform desired-state root (for dependsOn remote-state paths). */
   configRoot?: string;
   /**
@@ -36,14 +44,17 @@ export interface GenerateResult {
   fileCount: number;
   files: string[];
   warnings?: string[];
+  moduleInstallMode: ModuleInstallMode;
 }
 
 /**
  * Generate Terraform/OpenTofu from unit JSON into `outputDir`.
  *
  * Writes instance stack files (main.tf, provider.tf, …). For a desired-state repo
- * that is typically `<configRoot>/archive/…`. Vendors modules/ from the bank;
- * never modifies the bank itself.
+ * that is typically `<configRoot>/archive/…`.
+ *
+ * When the module bank is a git URL, modules are referenced remotely
+ * (`git::…//aws/vpc?ref=…`) and are **not** copied into archive.
  */
 export async function generateInfrastructure(
   config: GridConfig,
@@ -55,9 +66,18 @@ export async function generateInfrastructure(
   const warnings: string[] = [];
   const region = config.region || provider.defaultRegion;
   const dependencies = options.dependencies || [];
+  const installMode = resolveModuleInstallMode(options.moduleInstallMode);
 
+  // Local bank cache is still used to introspect module variables (.tf).
+  // Remote mode does not vendor that tree into the output.
   const bankRoot = await ensureModuleBankRoot();
   warnings.push(`Module bank (read-only source): ${bankRoot}`);
+  warnings.push(`Module source mode: ${installMode}`);
+
+  const moduleSourceForPath =
+    installMode === 'remote'
+      ? (modulePath: string) => remoteModuleSource(modulePath)
+      : (modulePath: string) => localModuleSource(modulePath);
 
   let resourceBlocks: string;
   try {
@@ -65,12 +85,14 @@ export async function generateInfrastructure(
       project: config.project,
       region,
       dependencies,
+      moduleSourceForPath,
     });
   } catch (error) {
     throw new Error(
       `Generate failed for provider "${provider.id}": ${
         error instanceof Error ? error.message : String(error)
-      }`
+      }`,
+      { cause: error }
     );
   }
 
@@ -79,9 +101,17 @@ export async function generateInfrastructure(
 
   await fs.ensureDir(options.outputDir);
   const modulesTarget = path.join(options.outputDir, 'modules');
-  await fs.emptyDir(modulesTarget);
 
-  const header = `# Instance Terraform — regenerated from Grid JSON (do not treat as the module bank).
+  const header =
+    installMode === 'remote'
+      ? `# Instance Terraform — regenerated from Grid JSON (do not treat as the module bank).
+# Provider: ${provider.label} (${provider.id})
+# Project: ${config.project}
+# Modules: remote git sources from GRID_MODULE_BANK (not vendored into ./modules)
+# Updated by: grid generate | plan | deploy
+
+`
+      : `# Instance Terraform — regenerated from Grid JSON (do not treat as the module bank).
 # Provider: ${provider.label} (${provider.id})
 # Project: ${config.project}
 # Module bank (vendored into ./modules, bank itself is never modified): ${bankRoot}
@@ -95,29 +125,39 @@ export async function generateInfrastructure(
   const outputsTfPath = path.join(options.outputDir, 'outputs.tf');
   const variablesTfPath = path.join(options.outputDir, 'variables.tf');
 
-  const installMode =
-    options.moduleInstallMode ??
-    (process.env.GRID_MODULE_COPY === '1' || process.env.GRID_MODULE_COPY === 'true'
-      ? 'copy'
-      : undefined);
-
-  const [install] = await Promise.all([
-    copyModulesFromBank(modulesTarget, specs, installMode ? { mode: installMode } : undefined),
-    fs.writeFile(mainTfPath, `${header}${resourceBlocks}\n`),
-    fs.writeFile(providerTfPath, provider.renderProviderBlock(config)),
-    fs.writeFile(backendTfPath, generateBackend(config, { unitRelPath: options.unitRelPath })),
-    fs.writeFile(outputsTfPath, outputsBody),
-    fs.writeFile(variablesTfPath, renderVariables(config, region)),
-  ]);
-
-  const verb = install.mode === 'link' ? 'Linked' : 'Vendored';
-  warnings.push(`${verb} modules into ./modules from bank: ${install.installed.join(', ') || '(none)'}`);
-  warnings.push(
-    'Instance HCL (main.tf, …) was rewritten from JSON. Module bank was not modified.'
-  );
-  if (install.mode === 'link') {
-    warnings.push('Modules are symlinked (fast). Archive/deploy uses copy by default.');
+  if (installMode === 'remote') {
+    // Drop any previously vendored ./modules so archive stays thin.
+    await fs.remove(modulesTarget);
+    await Promise.all([
+      fs.writeFile(mainTfPath, `${header}${resourceBlocks}\n`),
+      fs.writeFile(providerTfPath, provider.renderProviderBlock(config)),
+      fs.writeFile(backendTfPath, generateBackend(config, { unitRelPath: options.unitRelPath })),
+      fs.writeFile(outputsTfPath, outputsBody),
+      fs.writeFile(variablesTfPath, renderVariables(config, region)),
+    ]);
+    warnings.push(
+      'Modules referenced via git:: from GRID_MODULE_BANK (nothing copied into ./modules).'
+    );
+    warnings.push(
+      `Pin with GRID_MODULE_BANK_REF (current: ${process.env.GRID_MODULE_BANK_REF || process.env.GRID_MODULE_BANK_BRANCH || 'main'}).`
+    );
+  } else {
+    await fs.emptyDir(modulesTarget);
+    const [install] = await Promise.all([
+      copyModulesFromBank(modulesTarget, specs, { mode: installMode }),
+      fs.writeFile(mainTfPath, `${header}${resourceBlocks}\n`),
+      fs.writeFile(providerTfPath, provider.renderProviderBlock(config)),
+      fs.writeFile(backendTfPath, generateBackend(config, { unitRelPath: options.unitRelPath })),
+      fs.writeFile(outputsTfPath, outputsBody),
+      fs.writeFile(variablesTfPath, renderVariables(config, region)),
+    ]);
+    const verb = install.mode === 'link' ? 'Linked' : 'Vendored';
+    warnings.push(
+      `${verb} modules into ./modules from bank: ${install.installed.join(', ') || '(none)'}`
+    );
   }
+
+  warnings.push('Instance HCL (main.tf, …) was rewritten from JSON. Module bank was not modified.');
   if (dependencies.length > 0) {
     warnings.push(
       `Wired ${dependencies.length} dependsOn unit(s) via terraform_remote_state (reference only).`
@@ -130,11 +170,14 @@ export async function generateInfrastructure(
     fileCount: files.length,
     files,
     warnings,
+    moduleInstallMode: installMode,
   };
 }
 
-function dedupeSpecs(specs: ModuleCopySpec[]): ModuleCopySpec[] {
-  const byDest = new Map<string, ModuleCopySpec>();
+function dedupeSpecs(
+  specs: ReturnType<typeof moduleSpecsFromResources>
+): ReturnType<typeof moduleSpecsFromResources> {
+  const byDest = new Map<string, (typeof specs)[number]>();
   for (const spec of specs) {
     if (!byDest.has(spec.destPath)) byDest.set(spec.destPath, spec);
   }

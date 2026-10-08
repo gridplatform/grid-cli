@@ -26,6 +26,10 @@ export function generateCommand(program: Command) {
       `Output directory (default: <config-root>/${ARCHIVE_DIR}/<same-path-as-json>/)`
     )
     .option('--format <format>', 'Output format (terraform|opentofu)', 'terraform')
+    .option(
+      '--module-source <mode>',
+      'Module source: remote (git:: bank URL, default when GRID_MODULE_BANK is git) | copy | link'
+    )
     .action(async (options) => {
       const ora = (await import('ora')).default;
       const spinner = ora('Generating infrastructure files...').start();
@@ -70,10 +74,11 @@ export function generateCommand(program: Command) {
           });
         }
 
+        const moduleMode = parseModuleSourceOption(options.moduleSource);
         const result = await generateInfrastructure(resolved.config, {
           outputDir,
           format: options.format as 'terraform' | 'opentofu',
-          moduleInstallMode: inArchive ? 'copy' : undefined,
+          moduleInstallMode: moduleMode,
           configRoot: configRoot || undefined,
           unitRelPath: inArchive && rel ? rel : undefined,
           dependencies: resolved.dependencies,
@@ -87,11 +92,11 @@ export function generateCommand(program: Command) {
           )
         );
         if (inArchive) {
-          console.log(
-            chalk.gray(
-              `  Rewrote main.tf / provider.tf / … from JSON. Vendored ./modules from bank (bank unchanged).`
-            )
-          );
+          const modeNote =
+            result.moduleInstallMode === 'remote'
+              ? 'Modules referenced via git:: (not copied into ./modules).'
+              : `Modules installed as ${result.moduleInstallMode} under ./modules.`;
+          console.log(chalk.gray(`  Rewrote main.tf / provider.tf / … from JSON. ${modeNote}`));
           console.log(
             chalk.gray(
               `  Deploy from ${ARCHIVE_DIR}/… — without Grid: terraform -chdir=<that-dir> init && plan`
@@ -110,4 +115,13 @@ export function generateCommand(program: Command) {
         process.exit(1);
       }
     });
+}
+
+function parseModuleSourceOption(
+  value: unknown
+): 'remote' | 'copy' | 'link' | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const v = value.trim().toLowerCase();
+  if (v === 'remote' || v === 'copy' || v === 'link') return v;
+  throw new Error(`Invalid --module-source "${value}". Use remote | copy | link.`);
 }

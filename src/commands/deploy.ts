@@ -105,7 +105,7 @@ async function deploySingle(options: {
     await generateInfrastructure(config, {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
-      moduleInstallMode: underRoot || !options.output ? 'copy' : undefined,
+      // Default: remote git:: when GRID_MODULE_BANK is a URL (no ./modules vendor).
       configRoot: configRoot || undefined,
       unitRelPath: rel || undefined,
       dependencies: resolved.dependencies,
@@ -217,7 +217,6 @@ async function deployReconcile(options: {
     await generateInfrastructure(resolved.config, {
       outputDir,
       format: options.format as 'terraform' | 'opentofu',
-      moduleInstallMode: 'copy',
       configRoot,
       unitRelPath: t.configPath,
       dependencies: resolved.dependencies,
