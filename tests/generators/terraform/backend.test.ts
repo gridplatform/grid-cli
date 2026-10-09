@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateBackend,
+  normalizeBackendMode,
   remoteStateKey,
   renderRemoteStateDataBlock,
 } from '../../../src/generators/terraform/backend';
@@ -48,6 +49,69 @@ describe('terraform backend', () => {
     });
     expect(hcl).toContain('backend "azurerm"');
     expect(hcl).toContain(remoteStateKey(unit));
+  });
+
+  it('emits oci backend', () => {
+    const hcl = generateBackend(cfg, {
+      mode: 'oci',
+      stateBucket: 'oci-bucket',
+      ociNamespace: 'mytenancy',
+      stateRegion: 'us-ashburn-1',
+      unitRelPath: unit,
+    });
+    expect(hcl).toContain('backend "oci"');
+    expect(hcl).toContain('namespace = "mytenancy"');
+    expect(hcl).toContain(remoteStateKey(unit));
+  });
+
+  it('emits oss backend', () => {
+    const hcl = generateBackend(cfg, {
+      mode: 'oss',
+      stateBucket: 'oss-bucket',
+      stateRegion: 'cn-hangzhou',
+      unitRelPath: unit,
+    });
+    expect(hcl).toContain('backend "oss"');
+    expect(hcl).toContain('prefix = "grid/projects/grid-labs/aws/development/vpc/demo-vpc"');
+  });
+
+  it('emits cos backend for Tencent', () => {
+    const hcl = generateBackend(cfg, {
+      mode: 'cos',
+      stateBucket: 'tf-1258798060',
+      stateRegion: 'ap-guangzhou',
+      unitRelPath: unit,
+    });
+    expect(hcl).toContain('backend "cos"');
+    expect(hcl).toContain('ap-guangzhou');
+    expect(hcl).toContain('prefix = "grid/projects/grid-labs/aws/development/vpc/demo-vpc"');
+  });
+
+  it('emits s3compat backend with custom endpoint', () => {
+    const hcl = generateBackend(cfg, {
+      mode: 's3compat',
+      stateBucket: 'obs-bucket',
+      stateRegion: 'cn-north-1',
+      s3Endpoint: 'https://obs.cn-north-1.myhuaweicloud.com',
+      unitRelPath: unit,
+    });
+    expect(hcl).toContain('backend "s3"');
+    expect(hcl).toContain('obs.cn-north-1.myhuaweicloud.com');
+    expect(hcl).toContain('skip_credentials_validation');
+    expect(hcl).toContain('skip_s3_checksum');
+    expect(hcl).not.toContain('dynamodb_table');
+  });
+
+  it('maps module-bank provider aliases onto backend modes', () => {
+    expect(normalizeBackendMode('tencent')).toBe('cos');
+    expect(normalizeBackendMode('huawei')).toBe('s3compat');
+    expect(normalizeBackendMode('ovh')).toBe('s3compat');
+    expect(normalizeBackendMode('deutsche-telekom')).toBe('s3compat');
+    expect(normalizeBackendMode('ibm')).toBe('s3compat');
+    expect(normalizeBackendMode('ctrls')).toBe('s3compat');
+    expect(normalizeBackendMode('yotta')).toBe('s3compat');
+    expect(normalizeBackendMode('alibaba')).toBe('oss');
+    expect(normalizeBackendMode('oracle')).toBe('oci');
   });
 
   it('remote_state data block follows backend mode', () => {
