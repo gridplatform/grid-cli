@@ -40,16 +40,17 @@ npm install
 npm run build
 
 # Sibling module bank required (or set GRID_MODULE_BANK)
-grid generate --config examples/simple-vpc-vm.json --output ./generated --format terraform
-grid validate --config examples/aws-s3-bucket.json
+# Use a desired-state JSON from grid-config (or your own file)
+grid generate --config /path/to/unit.json --output ./generated --format terraform
+grid validate --config /path/to/unit.json
 ```
 
-Sample desired-state: [grid-config](https://github.com/gridplatform/grid-config).
+Desired-state samples: [grid-config](https://github.com/gridplatform/grid-config) (not shipped inside grid-cli).
 Step-by-step AWS/GCP plan & deploy: [grid-docs → CLI](https://github.com/gridplatform/grid-docs/blob/main/docs/cli/aws-gcp.md).
 Admin / environments / approvals: [grid-docs → Admin RBAC](https://github.com/gridplatform/grid-docs/blob/main/docs/admin/rbac.md).
 Self-host install: [grid-docs → Install](https://github.com/gridplatform/grid-docs/tree/main/docs/install).
 
-## Example config
+## Config shape
 
 ```json
 {
