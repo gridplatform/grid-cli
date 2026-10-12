@@ -222,3 +222,47 @@ export const openshiftProvider = provider({
   message:
     'Modules under grid-terraform/openshift. Configure cloud + OpenShift credentials before apply.',
 });
+
+export const redisEnterpriseProvider = provider({
+  id: 'redis-enterprise',
+  label: 'Redis Enterprise Cloud',
+  status: 'planned',
+  defaultRegion: 'us-east-1',
+  moduleRoot: 'redis-enterprise',
+  message:
+    'Modules under grid-terraform/redis-enterprise/{aws,azure,gcp}. Configure the Redis Cloud provider before apply.',
+  providerBlock: `terraform {
+  required_providers {
+    rediscloud = {
+      source  = "RedisLabs/rediscloud"
+      version = ">= 1.0"
+    }
+  }
+  required_version = ">= 1.0"
+}
+
+provider "rediscloud" {}
+`,
+});
+
+export const confluentCloudProvider = provider({
+  id: 'confluent-cloud',
+  label: 'Confluent Cloud',
+  status: 'planned',
+  defaultRegion: 'us-east-1',
+  moduleRoot: 'confluent-cloud',
+  message:
+    'Modules under grid-terraform/confluent-cloud. Configure the Confluent provider before apply.',
+  providerBlock: `terraform {
+  required_providers {
+    confluent = {
+      source  = "confluentinc/confluent"
+      version = ">= 1.0"
+    }
+  }
+  required_version = ">= 1.0"
+}
+
+provider "confluent" {}
+`,
+});

@@ -1330,6 +1330,18 @@ export const OPENSHIFT_CATALOG: ResourceCatalogEntry[] = [
 
 ];
 
+/** Redis Enterprise Cloud — cloud choice is the catalog subtype (module folder). */
+export const REDIS_ENTERPRISE_CATALOG: ResourceCatalogEntry[] = [
+  { type: 'aws', label: 'Redis Enterprise on AWS', modulePath: 'redis-enterprise/aws', status: 'planned' },
+  { type: 'azure', label: 'Redis Enterprise on Azure', modulePath: 'redis-enterprise/azure', status: 'planned' },
+  { type: 'gcp', label: 'Redis Enterprise on GCP', modulePath: 'redis-enterprise/gcp', status: 'planned' },
+];
+
+/** Confluent Cloud — single root module. */
+export const CONFLUENT_CLOUD_CATALOG: ResourceCatalogEntry[] = [
+  { type: 'confluent-cloud', label: 'Confluent Cloud', modulePath: 'confluent-cloud', status: 'planned' },
+];
+
 const CATALOGS: Partial<Record<ProviderId, ResourceCatalogEntry[]>> = {
   aws: AWS_CATALOG,
   gcp: GCP_CATALOG,
@@ -1345,6 +1357,8 @@ const CATALOGS: Partial<Record<ProviderId, ResourceCatalogEntry[]>> = {
   yotta: YOTTA_CATALOG,
   rancher: RANCHER_CATALOG,
   openshift: OPENSHIFT_CATALOG,
+  'redis-enterprise': REDIS_ENTERPRISE_CATALOG,
+  'confluent-cloud': CONFLUENT_CLOUD_CATALOG,
 };
 
 export function catalogFor(provider: ProviderId): ResourceCatalogEntry[] {

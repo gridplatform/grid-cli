@@ -8,6 +8,7 @@ import { gcpProvider } from './gcp';
 import { azureProvider } from './azure';
 import {
   alibabaProvider,
+  confluentCloudProvider,
   ctrlsProvider,
   deutscheTelekomProvider,
   huaweiProvider,
@@ -16,6 +17,7 @@ import {
   oracleProvider,
   ovhProvider,
   rancherProvider,
+  redisEnterpriseProvider,
   tencentProvider,
   yottaProvider,
 } from './catalogOnly';
@@ -39,6 +41,8 @@ export function bootstrapProviders(): void {
   registerProvider(yottaProvider);
   registerProvider(rancherProvider);
   registerProvider(openshiftProvider);
+  registerProvider(redisEnterpriseProvider);
+  registerProvider(confluentCloudProvider);
 
   bootstrapped = true;
 }
