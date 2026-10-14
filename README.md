@@ -1,36 +1,10 @@
 # Grid CLI
 
-Command-line engine for Grid: turn `grid.json` into Terraform/OpenTofu using the
-**grid-terraform** module bank, then optionally apply.
+Command-line tool for Grid: turn desired-state JSON into Terraform using the **[grid-terraform](https://github.com/gridplatform/grid-terraform)** module bank, then preview or apply changes.
 
-grid-core calls this CLI on deploy (`grid generate`). You can also run it alone.
+**[grid-core](https://github.com/gridplatform/grid-core)** uses this tool on every console release (`generate`, then Terraform). You can also run it alone from a terminal.
 
-## Where Terraform modules live
-
-**Not vendored in this repo.** Modules are copied at generate time from sibling
-`../grid-terraform` (or `GRID_MODULE_BANK`). The `templates/terraform/` folder
-is intentionally empty of modules — see [templates/terraform/README.md](templates/terraform/README.md).
-
-## How generate works
-
-1. Validate `grid.json` (open schema: any catalog type + passthrough fields).
-2. Look up each resource `type` in the CLI resource catalog → `modulePath`.
-3. Copy that folder from the module bank into `generated/modules/`.
-4. Emit a `module` block; request fields become Terraform variables.
-
-**Convenience only on AWS/GCP:** `vpc` / `subnet` / `vm` still use dedicated
-composers that wire a small network graph. Every other type (and every type on
-other clouds) uses the catalog path.
-
-## Who can deploy what (by design)
-
-| Path | Feature flags | What you need |
-|------|---------------|---------------|
-| **Console (UI)** | Yes — hides / does not send off types | Flag `true` in `grid-ui` `featureFlags.ts` |
-| **HTTP API (grid-core)** | No | Correct `POST /deployments` body + working CLI/bank/creds |
-| **CLI** | No | Valid `grid.json` + module in grid-terraform + cloud/provider creds |
-
-Someone who knows the API body can deploy a type the console hides. That is intentional.
+**Docs:** [CLI (AWS / GCP)](https://github.com/gridplatform/grid-docs/blob/main/docs/cli/aws-gcp.md) · [Install](https://github.com/gridplatform/grid-docs/tree/main/docs/install)
 
 ## Quick start
 
@@ -39,77 +13,58 @@ cd grid-cli
 npm install
 npm run build
 
-# Sibling module bank required (or set GRID_MODULE_BANK)
-# Use a desired-state JSON from grid-config (or your own file)
+# Needs a module bank (sibling checkout or GRID_MODULE_BANK)
 grid generate --config /path/to/unit.json --output ./generated --format terraform
 grid validate --config /path/to/unit.json
 ```
 
-Desired-state samples: [grid-config](https://github.com/gridplatform/grid-config) (not shipped inside grid-cli).
-Step-by-step AWS/GCP plan & deploy: [grid-docs → CLI](https://github.com/gridplatform/grid-docs/blob/main/docs/cli/aws-gcp.md).
-Admin / environments / approvals: [grid-docs → Admin RBAC](https://github.com/gridplatform/grid-docs/blob/main/docs/admin/rbac.md).
-Self-host install: [grid-docs → Install](https://github.com/gridplatform/grid-docs/tree/main/docs/install).
+Sample JSON shape: **[grid-config](https://github.com/gridplatform/grid-config)** (example only — use your own repository in production).
 
-## Config shape
+## How generate works
 
-```json
-{
-  "provider": "aws",
-  "project": "demo",
-  "region": "ap-south-1",
-  "resources": [
-    {
-      "type": "s3",
-      "name": "logs",
-      "bucket": "my-unique-grid-logs-bucket"
-    }
-  ]
-}
-```
-
-`type` must exist in the catalog for that provider. Extra keys must match the
-module’s `variables.tf` in grid-terraform.
+1. Validate the unit JSON.
+2. Map each resource `type` to a module path in the catalog.
+3. Copy that module from the module bank.
+4. Emit Terraform that uses those modules.
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `grid generate` | JSON → Terraform/OpenTofu under `--output` |
-| `grid plan` | generate + `terraform plan` (preview create/change/destroy) |
-| `grid deploy` | generate + init/plan/apply (converge); updates local inventory when under a config root |
-| `grid deploy --config-dir … --reconcile` | apply **added + changed** units only (never destroys stale) |
-| `grid destroy` | `terraform destroy` for a workspace (+ inventory cleanup) |
-| `grid validate` | schema check |
-| `grid status` | inspect a generated workspace |
-| `grid status --config-dir …` | diff desired JSON vs inventory: added / changed / unchanged / **stale** |
-| `grid prune --config-dir …` | list stale units (JSON deleted); suggest destroy |
-| `grid prune --config-dir … --destroy` | confirm, then destroy selected stale workspaces |
-| `grid providers` | list registered cloud adapters |
+| `grid generate` | JSON → Terraform under `--output` (or `archive/` with a config root) |
+| `grid plan` | Generate + `terraform plan` |
+| `grid deploy` | Generate + apply (converge) |
+| `grid destroy` | Tear down a workspace |
+| `grid validate` | Schema check |
+| `grid status` | Workspace status, or desired-state vs inventory (`--config-dir`) |
+| `grid prune` | List or destroy units removed from JSON |
+| `grid providers` | List registered cloud adapters |
 
-### Desired-state root (`grid-config`)
+### Desired-state tree
 
-`grid-config` (or any tree of `*.json` Grid configs) is the source of truth.
+Point `--config-dir` at **your** GitHub checkout of intent JSON (not a long-term fork of `grid-config`).
 
 ```bash
-# See what changed / what is stale
-grid status --config-dir ../grid-config
-
-# Apply new/edited JSON only
-grid deploy --config-dir ../grid-config --reconcile
-
-# JSON deleted → listed as stale; destroy only after confirmation
-grid prune --config-dir ../grid-config
-grid prune --config-dir ../grid-config --destroy
+grid status --config-dir /path/to/your-infra
+grid deploy --config-dir /path/to/your-infra --reconcile
+grid prune --config-dir /path/to/your-infra
 ```
 
-Inventory + workspaces live under `<config-dir>/.grid/` (gitignored automatically).
+Inventory and workspaces live under `<config-dir>/.grid/` (gitignored).
 
-## Env
+## Console vs CLI
+
+| Path | Feature flags | What you need |
+|------|---------------|---------------|
+| Console ([grid-ui](https://github.com/gridplatform/grid-ui)) | Can hide types in the UI | Core + flags + credentials |
+| This CLI / Core API | No flags | Valid JSON + module in the bank + cloud credentials |
+
+## Environment
 
 | Variable | Purpose |
 |----------|---------|
-| `GRID_MODULE_BANK` | Absolute path to grid-terraform (optional) |
-| `GRID_CONFIG_ROOT` | Default desired-state root for `--config-dir` resolution |
+| `GRID_MODULE_BANK` | Path or git URL for grid-terraform |
+| `GRID_CONFIG_ROOT` | Default desired-state root for `--config-dir` |
 
 ## License
 
