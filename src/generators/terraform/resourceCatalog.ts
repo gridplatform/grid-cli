@@ -39,22 +39,23 @@ export interface ResourceCatalogEntry {
 }
 
 export const AWS_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'VPC', modulePath: 'aws/vpc', status: 'supported', omitInputs: [] },
+  { type: 'vpc', label: 'VPC (+ subnets)', modulePath: 'aws/vpc', status: 'supported', omitInputs: [] },
   { type: 'subnet', label: 'Subnet (folded into VPC)', modulePath: 'aws/vpc', status: 'supported', foldInto: { parentType: 'vpc', parentKey: 'vpc', variable: 'public_subnets', listMode: 'string', stringField: 'cidr' } },
-  { type: 'vm', label: 'EC2 instance', modulePath: 'aws/ec2-instance', status: 'supported', inputMap: { machineType: 'instance_type', subnet: 'subnet_id', image: 'ami', tags: 'tags', securityGroups: 'vpc_security_group_ids', keyName: 'key_name', diskSize: 'root_volume_size' } },
+  { type: 'ec2-instance', label: 'EC2 instance', modulePath: 'aws/ec2-instance', status: 'supported', inputMap: { machineType: 'instance_type', subnet: 'subnet_id', image: 'ami', tags: 'tags', securityGroups: 'vpc_security_group_ids', keyName: 'key_name', diskSize: 'root_volume_size' } },
   { type: 'security-group', label: 'Security group', modulePath: 'aws/security-group', status: 'supported', inputMap: { vpc: 'vpc_id' } },
-  { type: 's3', label: 'S3 bucket', modulePath: 'aws/s3-bucket', status: 'supported' },
+  { type: 's3-bucket', label: 'S3 bucket', modulePath: 'aws/s3-bucket', status: 'supported' },
   { type: 'rds', label: 'RDS', modulePath: 'aws/rds', status: 'supported' },
   { type: 'eks', label: 'EKS', modulePath: 'aws/eks', status: 'supported' },
   { type: 'lambda', label: 'Lambda', modulePath: 'aws/lambda', status: 'supported' },
   { type: 'ecs', label: 'ECS', modulePath: 'aws/ecs', status: 'supported' },
   { type: 'alb', label: 'ALB', modulePath: 'aws/alb', status: 'supported' },
-  { type: 'dynamodb', label: 'DynamoDB', modulePath: 'aws/dynamodb-table', status: 'supported' },
+  { type: 'dynamodb-table', label: 'DynamoDB', modulePath: 'aws/dynamodb-table', status: 'supported' },
   { type: 'elasticache', label: 'ElastiCache', modulePath: 'aws/elasticache', status: 'supported' },
   { type: 'ecr', label: 'ECR', modulePath: 'aws/ecr', status: 'supported' },
   { type: 'sns', label: 'SNS', modulePath: 'aws/sns', status: 'supported' },
   { type: 'sqs', label: 'SQS', modulePath: 'aws/sqs', status: 'supported' },
   { type: 'iam', label: 'IAM', modulePath: 'aws/iam', status: 'supported' },
+  { type: 'iam-role', label: 'IAM role', modulePath: 'aws/iam-role', status: 'planned' },
   { type: 'kms', label: 'KMS', modulePath: 'aws/kms', status: 'supported' },
   { type: 'secrets-manager', label: 'Secrets Manager', modulePath: 'aws/secrets-manager', status: 'supported' },
   { type: 'route53', label: 'Route 53 DNS (zone + records, public/private)', modulePath: 'aws/route53', status: 'supported' },
@@ -62,7 +63,8 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'route53-dnssec', label: 'Route 53 DNSSEC', modulePath: 'aws/route53-dnssec', status: 'supported' },
   { type: 'acm', label: 'ACM', modulePath: 'aws/acm', status: 'supported' },
   { type: 'cloudwatch', label: 'CloudWatch', modulePath: 'aws/cloudwatch', status: 'supported' },
-  { type: 'apigateway', label: 'API Gateway v2', modulePath: 'aws/apigateway-v2', status: 'supported' },
+  { type: 'cloudwatch-log-group', label: 'CloudWatch log group', modulePath: 'aws/cloudwatch-log-group', status: 'planned' },
+  { type: 'apigateway-v2', label: 'API Gateway v2', modulePath: 'aws/apigateway-v2', status: 'supported' },
   { type: 'autoscaling', label: 'Autoscaling', modulePath: 'aws/autoscaling', status: 'supported' },
   { type: 'emr', label: 'EMR', modulePath: 'aws/emr', status: 'supported' },
   { type: 'msk', label: 'MSK', modulePath: 'aws/msk', status: 'supported' },
@@ -276,15 +278,15 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const GCP_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'VPC network (+ subnets, firewall, routes, peering, PSA)', modulePath: 'gcp/network', status: 'supported', inputMap: { name: 'network_name' }, omitInputs: ['cidr'] },
-  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'gcp/network', status: 'supported', foldInto: { parentType: 'vpc', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'subnet_name', cidr: 'subnet_ip', region: 'subnet_region', description: 'description' } } },
-  { type: 'firewall', label: 'Firewall rules (folded into network)', modulePath: 'gcp/network', status: 'supported' },
-  { type: 'peering', label: 'VPC peering (folded into network)', modulePath: 'gcp/network', status: 'supported' },
-  { type: 'route', label: 'Custom routes (folded into network)', modulePath: 'gcp/network', status: 'supported' },
+  { type: 'network', label: 'VPC network (+ subnets)', modulePath: 'gcp/network', status: 'supported', inputMap: { name: 'network_name' }, omitInputs: ['cidr'] },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'gcp/network', status: 'supported', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'subnet_name', cidr: 'subnet_ip', region: 'subnet_region', description: 'description' } } },
+  { type: 'firewall', label: 'VPC firewall rules', modulePath: 'gcp/firewall', status: 'supported' },
+  { type: 'peering', label: 'VPC peering', modulePath: 'gcp/peering', status: 'supported' },
+  { type: 'route', label: 'Custom VPC routes', modulePath: 'gcp/route', status: 'supported' },
   { type: 'cloud-nat', label: 'Cloud NAT', modulePath: 'gcp/cloud-nat', status: 'supported' },
   { type: 'vpc-access-connector', label: 'Serverless VPC Access connector', modulePath: 'gcp/vpc-access-connector', status: 'supported' },
-  { type: 'vm', label: 'Compute Engine VM', modulePath: 'gcp/compute-engine-instance', status: 'supported', inputMap: { name: 'instance_name', machineType: 'machine_type', diskSize: 'boot_disk_size_gb', diskType: 'boot_disk_type', image: 'gcp_image', subnet: 'subnetwork', tags: 'network_tags' } },
-  { type: 'gke', label: 'GKE cluster (node pools are separate units)', modulePath: 'gcp/kubernetes-engine', status: 'supported' },
+  { type: 'compute-engine-instance', label: 'Compute Engine VM', modulePath: 'gcp/compute-engine-instance', status: 'supported', inputMap: { name: 'instance_name', machineType: 'machine_type', diskSize: 'boot_disk_size_gb', diskType: 'boot_disk_type', image: 'gcp_image', subnet: 'subnetwork', tags: 'network_tags' } },
+  { type: 'kubernetes-engine', label: 'GKE cluster (node pools are separate units)', modulePath: 'gcp/kubernetes-engine', status: 'supported' },
   { type: 'gke-node-pool', label: 'GKE node pool (one YAML per pool)', modulePath: 'gcp/gke-node-pool', status: 'supported' },
   { type: 'cloud-run', label: 'Cloud Run (Gen 2)', modulePath: 'gcp/cloud-run', status: 'supported' },
   { type: 'cloud-function', label: 'Cloud Function (Gen 1)', modulePath: 'gcp/cloud-function', status: 'supported' },
@@ -292,8 +294,8 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
   { type: 'cloud-sql-mysql', label: 'Cloud SQL MySQL', modulePath: 'gcp/cloud-sql-mysql', status: 'supported' },
   { type: 'cloud-sql-postgres', label: 'Cloud SQL PostgreSQL', modulePath: 'gcp/cloud-sql-postgres', status: 'supported' },
   { type: 'cloud-sql-sqlserver', label: 'Cloud SQL SQL Server', modulePath: 'gcp/cloud-sql-sqlserver', status: 'supported' },
-  { type: 'gcs', label: 'Cloud Storage', modulePath: 'gcp/cloud-storage', status: 'supported' },
-  { type: 'memorystore', label: 'Memorystore Redis', modulePath: 'gcp/memorystore-redis', status: 'supported' },
+  { type: 'cloud-storage', label: 'Cloud Storage', modulePath: 'gcp/cloud-storage', status: 'supported' },
+  { type: 'memorystore-redis', label: 'Memorystore Redis', modulePath: 'gcp/memorystore-redis', status: 'supported' },
   { type: 'bigquery', label: 'BigQuery (+ BQML / vector search via SQL)', modulePath: 'gcp/bigquery', status: 'supported' },
   { type: 'pubsub', label: 'Pub/Sub', modulePath: 'gcp/pubsub', status: 'supported' },
   { type: 'cloud-datastore', label: 'Datastore', modulePath: 'gcp/cloud-datastore', status: 'supported' },
@@ -304,15 +306,23 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
   { type: 'cloud-dns', label: 'Cloud DNS (public/private zone + records)', modulePath: 'gcp/cloud-dns', status: 'supported' },
   { type: 'certificate-manager', label: 'Certificate Manager (+ optional global IP)', modulePath: 'gcp/certificate-manager', status: 'supported' },
   { type: 'lb-http', label: 'HTTP(S) LB', modulePath: 'gcp/lb-http', status: 'supported' },
+  { type: 'load-balancer', label: 'Cloud Load Balancing', modulePath: 'gcp/load-balancer', status: 'planned' },
   { type: 'iam', label: 'Project IAM', modulePath: 'gcp/iam', status: 'supported' },
+  { type: 'service-account', label: 'Service account', modulePath: 'gcp/service-account', status: 'planned' },
   { type: 'service-accounts', label: 'Service accounts', modulePath: 'gcp/service-accounts', status: 'supported' },
+  { type: 'workload-identity', label: 'Workload Identity', modulePath: 'gcp/workload-identity', status: 'planned' },
   { type: 'group', label: 'Cloud Identity Group', modulePath: 'gcp/group', status: 'supported' },
   { type: 'secret-manager', label: 'Secret Manager', modulePath: 'gcp/secret-manager', status: 'supported' },
   { type: 'kms', label: 'KMS', modulePath: 'gcp/kms', status: 'supported' },
+  { type: 'cloud-kms', label: 'Cloud KMS', modulePath: 'gcp/cloud-kms', status: 'planned' },
   { type: 'org-policy', label: 'Org policy', modulePath: 'gcp/org-policy', status: 'supported' },
   { type: 'resource-manager-folders', label: 'Resource Manager folders', modulePath: 'gcp/resource-manager-folders', status: 'supported' },
   { type: 'log-export', label: 'Log sink / export', modulePath: 'gcp/log-export', status: 'supported' },
-  { type: 'monitoring-alert', label: 'Monitoring alert policy (log-based)', modulePath: 'gcp/monitoring-alert-policy', status: 'supported' },
+  { type: 'logging', label: 'Cloud Logging sink', modulePath: 'gcp/logging', status: 'planned' },
+  { type: 'monitoring-alert-policy', label: 'Monitoring alert policy (log-based)', modulePath: 'gcp/monitoring-alert-policy', status: 'supported' },
+  { type: 'alert-policy', label: 'Alert policy', modulePath: 'gcp/alert-policy', status: 'planned' },
+  { type: 'cloud-monitoring', label: 'Cloud Monitoring', modulePath: 'gcp/cloud-monitoring', status: 'planned' },
+  { type: 'cloud-endpoints', label: 'Cloud Endpoints', modulePath: 'gcp/cloud-endpoints', status: 'planned' },
   { type: 'cloud-scheduler', label: 'Cloud Scheduler', modulePath: 'gcp/cloud-scheduler', status: 'supported' },
   { type: 'artifact-registry', label: 'Artifact Registry', modulePath: 'gcp/artifact-registry', status: 'supported' },
   { type: 'vault', label: 'Vault IAM helpers', modulePath: 'gcp/vault', status: 'supported' },
@@ -385,7 +395,7 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
   { type: 'media-cdn', label: 'Media Cdn', modulePath: 'gcp/media-cdn', status: 'supported' },
   { type: 'memorystore-memcached', label: 'Memorystore Memcached', modulePath: 'gcp/memorystore-memcached', status: 'supported' },
   { type: 'mig', label: 'Mig', modulePath: 'gcp/mig', status: 'supported' },
-  { type: 'natural-language', label: 'Natural Language', modulePath: 'gcp/natural-language', status: 'supported' },
+  // natural-language / speech-to-text / translation / vision-ai → gcp/ai-api peers (above); do not re-add type-named rows
   { type: 'network-connectivity', label: 'Network Connectivity', modulePath: 'gcp/network-connectivity', status: 'supported' },
   { type: 'network-security', label: 'Network Security', modulePath: 'gcp/network-security', status: 'supported' },
   { type: 'private-ca', label: 'Private Ca', modulePath: 'gcp/private-ca', status: 'supported' },
@@ -394,9 +404,6 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
   { type: 'redis-cluster', label: 'Redis Cluster', modulePath: 'gcp/redis-cluster', status: 'supported' },
   { type: 'service-directory', label: 'Service Directory', modulePath: 'gcp/service-directory', status: 'supported' },
   { type: 'source-repositories', label: 'Source Repositories', modulePath: 'gcp/source-repositories', status: 'supported' },
-  { type: 'speech-to-text', label: 'Speech To Text', modulePath: 'gcp/speech-to-text', status: 'supported' },
-  { type: 'translation', label: 'Translation', modulePath: 'gcp/translation', status: 'supported' },
-  { type: 'vision-ai', label: 'Vision Ai', modulePath: 'gcp/vision-ai', status: 'supported' },
   { type: 'vpc-service-controls', label: 'Vpc Service Controls', modulePath: 'gcp/vpc-service-controls', status: 'supported' },
 
   // Module bank scaffolds (sync-resource-catalog.js)
@@ -431,19 +438,25 @@ export const GCP_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const AZURE_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'vpc', label: 'Virtual network', modulePath: 'azure/network', status: 'coming_soon' },
-  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'azure/network', status: 'coming_soon', foldInto: { parentType: 'vpc', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'address_prefix', description: 'description' } } },
-  { type: 'vm', label: 'Virtual machine', modulePath: 'azure/virtual-machine', status: 'coming_soon' },
+  { type: 'network', label: 'Virtual network (+ subnets)', modulePath: 'azure/network', status: 'coming_soon' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'azure/network', status: 'coming_soon', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'address_prefix', description: 'description' } } },
+  { type: 'virtual-machine', label: 'Virtual machine', modulePath: 'azure/virtual-machine', status: 'coming_soon' },
   { type: 'aks', label: 'AKS', modulePath: 'azure/aks', status: 'coming_soon' },
+  { type: 'aks-node-pool', label: 'AKS node pool', modulePath: 'azure/aks-node-pool', status: 'planned' },
   { type: 'postgresql', label: 'PostgreSQL Flexible Server', modulePath: 'azure/postgresql', status: 'coming_soon' },
-  { type: 'storage', label: 'Storage account', modulePath: 'azure/storage-account', status: 'coming_soon' },
+  { type: 'storage-account', label: 'Storage account', modulePath: 'azure/storage-account', status: 'coming_soon' },
   { type: 'load-balancer', label: 'Load balancer', modulePath: 'azure/load-balancer', status: 'coming_soon' },
-  { type: 'nsg', label: 'Network security group', modulePath: 'azure/network-security-group', status: 'coming_soon' },
-  { type: 'redis', label: 'Redis Cache', modulePath: 'azure/redis-cache', status: 'coming_soon' },
+  { type: 'network-security-group', label: 'Network security group', modulePath: 'azure/network-security-group', status: 'coming_soon' },
+  { type: 'redis-cache', label: 'Redis Cache', modulePath: 'azure/redis-cache', status: 'coming_soon' },
+  { type: 'azure-ad-application', label: 'Entra ID application', modulePath: 'azure/azure-ad-application', status: 'planned' },
+  { type: 'event-grid', label: 'Event Grid', modulePath: 'azure/event-grid', status: 'planned' },
+  { type: 'logic-app', label: 'Logic App', modulePath: 'azure/logic-app', status: 'planned' },
+  { type: 'container-instance', label: 'Container Instances', modulePath: 'azure/container-instance', status: 'planned' },
+  { type: 'devops-pipeline', label: 'Azure Pipelines', modulePath: 'azure/devops-pipeline', status: 'planned' },
 
   // AI — durable Terraform (modules present; apply may still be coming_soon)
-  { type: 'azure-openai', label: 'Azure OpenAI', modulePath: 'azure/openai', status: 'coming_soon' },
-  { type: 'azure-ml', label: 'Azure Machine Learning workspace', modulePath: 'azure/machine-learning', status: 'coming_soon' },
+  { type: 'openai', label: 'Azure OpenAI', modulePath: 'azure/openai', status: 'coming_soon' },
+  { type: 'machine-learning', label: 'Azure Machine Learning workspace', modulePath: 'azure/machine-learning', status: 'coming_soon' },
   { type: 'cognitive-services', label: 'Azure AI Services / Foundry Tools account', modulePath: 'azure/cognitive-services', status: 'coming_soon' },
   { type: 'ai-search', label: 'Azure AI Search', modulePath: 'azure/ai-search', status: 'coming_soon' },
   { type: 'document-intelligence', label: 'Document Intelligence (FormRecognizer kind)', modulePath: 'azure/cognitive-services', status: 'coming_soon' },
@@ -453,7 +466,7 @@ export const AZURE_CATALOG: ResourceCatalogEntry[] = [
   { type: 'content-safety', label: 'Azure Content Safety', modulePath: 'azure/cognitive-services', status: 'coming_soon' },
   { type: 'translator', label: 'Azure Translator', modulePath: 'azure/cognitive-services', status: 'coming_soon' },
   { type: 'key-vault', label: 'Key Vault', modulePath: 'azure/key-vault', status: 'coming_soon' },
-  { type: 'mysql', label: 'MySQL Flexible Server', modulePath: 'azure/mysql-flexible', status: 'coming_soon' },
+  { type: 'mysql-flexible', label: 'MySQL Flexible Server', modulePath: 'azure/mysql-flexible', status: 'coming_soon' },
   { type: 'app-service', label: 'App Service', modulePath: 'azure/app-service', status: 'coming_soon' },
 
   // Module bank scaffolds (sync-resource-catalog.js)
@@ -582,8 +595,9 @@ export const AZURE_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const ORACLE_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VCN / network', modulePath: 'oracle/network', status: 'planned' },
-  { type: 'vm', label: 'Compute instance', modulePath: 'oracle/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VCN / network (+ subnets)', modulePath: 'oracle/network', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'oracle/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
+  { type: 'compute-instance', label: 'Compute instance', modulePath: 'oracle/compute-instance', status: 'planned' },
   { type: 'oke', label: 'Oracle Kubernetes Engine (OKE)', modulePath: 'oracle/oke', status: 'planned' },
   { type: 'object-storage', label: 'Object Storage', modulePath: 'oracle/object-storage', status: 'planned' },
   { type: 'autonomous-database', label: 'Autonomous Database', modulePath: 'oracle/autonomous-database', status: 'planned' },
@@ -689,8 +703,8 @@ export const ORACLE_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const IBM_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VPC network', modulePath: 'ibm/network', status: 'planned' },
-  { type: 'vm', label: 'Virtual server instance', modulePath: 'ibm/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VPC network (+ subnets)', modulePath: 'ibm/network', status: 'planned' },
+  { type: 'compute-instance', label: 'Virtual server instance', modulePath: 'ibm/compute-instance', status: 'planned' },
   { type: 'roks', label: 'Red Hat OpenShift on IBM Cloud (ROKS)', modulePath: 'ibm/roks', status: 'planned' },
   { type: 'object-storage', label: 'Cloud Object Storage', modulePath: 'ibm/object-storage', status: 'planned' },
   { type: 'databases', label: 'Databases', modulePath: 'ibm/databases', status: 'planned' },
@@ -724,7 +738,7 @@ export const IBM_CATALOG: ResourceCatalogEntry[] = [
   { type: 'schematics', label: 'Schematics', modulePath: 'ibm/schematics', status: 'planned' },
   { type: 'secrets-manager', label: 'Secrets Manager', modulePath: 'ibm/secrets-manager', status: 'planned' },
   { type: 'security-group', label: 'Security Group', modulePath: 'ibm/security-group', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'ibm/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'ibm/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'sysdig', label: 'Sysdig', modulePath: 'ibm/sysdig', status: 'planned' },
   { type: 'transit-gateway', label: 'Transit Gateway', modulePath: 'ibm/transit-gateway', status: 'planned' },
   { type: 'vpn', label: 'Vpn', modulePath: 'ibm/vpn', status: 'planned' },
@@ -764,8 +778,9 @@ export const IBM_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const ALIBABA_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VPC', modulePath: 'alibaba/network', status: 'planned' },
-  { type: 'vm', label: 'ECS instance', modulePath: 'alibaba/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VPC network (+ subnets)', modulePath: 'alibaba/network', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'alibaba/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
+  { type: 'compute-instance', label: 'ECS instance', modulePath: 'alibaba/compute-instance', status: 'planned' },
   { type: 'ack', label: 'Container Service for Kubernetes (ACK)', modulePath: 'alibaba/ack', status: 'planned' },
   { type: 'object-storage', label: 'OSS', modulePath: 'alibaba/object-storage', status: 'planned' },
   { type: 'rds', label: 'RDS', modulePath: 'alibaba/rds', status: 'planned' },
@@ -859,8 +874,8 @@ export const ALIBABA_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const TENCENT_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VPC', modulePath: 'tencent/network', status: 'planned' },
-  { type: 'vm', label: 'CVM instance', modulePath: 'tencent/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VPC network (+ subnets)', modulePath: 'tencent/network', status: 'planned' },
+  { type: 'compute-instance', label: 'CVM instance', modulePath: 'tencent/compute-instance', status: 'planned' },
   { type: 'tke', label: 'Tencent Kubernetes Engine (TKE)', modulePath: 'tencent/tke', status: 'planned' },
   { type: 'object-storage', label: 'COS', modulePath: 'tencent/object-storage', status: 'planned' },
   { type: 'cdb', label: 'TencentDB (CDB)', modulePath: 'tencent/cdb', status: 'planned' },
@@ -889,7 +904,7 @@ export const TENCENT_CATALOG: ResourceCatalogEntry[] = [
   { type: 'redis', label: 'Redis', modulePath: 'tencent/redis', status: 'planned' },
   { type: 'scf', label: 'Scf', modulePath: 'tencent/scf', status: 'planned' },
   { type: 'security-group', label: 'Security Group', modulePath: 'tencent/security-group', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'tencent/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'tencent/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'tcr', label: 'Tcr', modulePath: 'tencent/tcr', status: 'planned' },
   { type: 'tdmq', label: 'Tdmq', modulePath: 'tencent/tdmq', status: 'planned' },
   { type: 'tke-node-pool', label: 'Tke Node Pool', modulePath: 'tencent/tke-node-pool', status: 'planned' },
@@ -932,8 +947,8 @@ export const TENCENT_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const HUAWEI_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VPC', modulePath: 'huawei/network', status: 'planned' },
-  { type: 'vm', label: 'ECS instance', modulePath: 'huawei/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VPC network (+ subnets)', modulePath: 'huawei/network', status: 'planned' },
+  { type: 'compute-instance', label: 'ECS instance', modulePath: 'huawei/compute-instance', status: 'planned' },
   { type: 'cce', label: 'Cloud Container Engine (CCE)', modulePath: 'huawei/cce', status: 'planned' },
   { type: 'object-storage', label: 'OBS', modulePath: 'huawei/object-storage', status: 'planned' },
   { type: 'rds', label: 'RDS', modulePath: 'huawei/rds', status: 'planned' },
@@ -965,7 +980,7 @@ export const HUAWEI_CATALOG: ResourceCatalogEntry[] = [
   { type: 'security-group', label: 'Security Group', modulePath: 'huawei/security-group', status: 'planned' },
   { type: 'sfs', label: 'Sfs', modulePath: 'huawei/sfs', status: 'planned' },
   { type: 'smn', label: 'Smn', modulePath: 'huawei/smn', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'huawei/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'huawei/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'swr', label: 'Swr', modulePath: 'huawei/swr', status: 'planned' },
   { type: 'vpn', label: 'Vpn', modulePath: 'huawei/vpn', status: 'planned' },
   { type: 'waf', label: 'Waf', modulePath: 'huawei/waf', status: 'planned' },
@@ -1052,8 +1067,8 @@ export const HUAWEI_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const OVH_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'Private network', modulePath: 'ovh/network', status: 'planned' },
-  { type: 'vm', label: 'Public Cloud instance', modulePath: 'ovh/compute-instance', status: 'planned' },
+  { type: 'network', label: 'Private network (+ subnets)', modulePath: 'ovh/network', status: 'planned' },
+  { type: 'compute-instance', label: 'Public Cloud instance', modulePath: 'ovh/compute-instance', status: 'planned' },
   { type: 'kubernetes', label: 'Managed Kubernetes', modulePath: 'ovh/kubernetes', status: 'planned' },
   { type: 'object-storage', label: 'Object Storage', modulePath: 'ovh/object-storage', status: 'planned' },
   { type: 'load-balancer', label: 'Load balancer', modulePath: 'ovh/load-balancer', status: 'planned' },
@@ -1074,7 +1089,7 @@ export const OVH_CATALOG: ResourceCatalogEntry[] = [
   { type: 'ip', label: 'Ip', modulePath: 'ovh/ip', status: 'planned' },
   { type: 'kubernetes-node-pool', label: 'Kubernetes Node Pool', modulePath: 'ovh/kubernetes-node-pool', status: 'planned' },
   { type: 'private-network', label: 'Private Network', modulePath: 'ovh/private-network', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'ovh/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'ovh/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'user', label: 'User', modulePath: 'ovh/user', status: 'planned' },
   { type: 'vrack', label: 'Vrack', modulePath: 'ovh/vrack', status: 'planned' },
 
@@ -1104,8 +1119,8 @@ export const OVH_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const DEUTSCHE_TELEKOM_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'VPC / network', modulePath: 'deutsche-telekom/network', status: 'planned' },
-  { type: 'vm', label: 'ECS instance', modulePath: 'deutsche-telekom/compute-instance', status: 'planned' },
+  { type: 'network', label: 'VPC / network (+ subnets)', modulePath: 'deutsche-telekom/network', status: 'planned' },
+  { type: 'compute-instance', label: 'ECS instance', modulePath: 'deutsche-telekom/compute-instance', status: 'planned' },
   { type: 'cce', label: 'Cloud Container Engine (CCE)', modulePath: 'deutsche-telekom/cce', status: 'planned' },
   { type: 'object-storage', label: 'Object Storage', modulePath: 'deutsche-telekom/object-storage', status: 'planned' },
   { type: 'rds', label: 'RDS', modulePath: 'deutsche-telekom/rds', status: 'planned' },
@@ -1131,7 +1146,7 @@ export const DEUTSCHE_TELEKOM_CATALOG: ResourceCatalogEntry[] = [
   { type: 'security-group', label: 'Security Group', modulePath: 'deutsche-telekom/security-group', status: 'planned' },
   { type: 'sfs', label: 'Sfs', modulePath: 'deutsche-telekom/sfs', status: 'planned' },
   { type: 'smn', label: 'Smn', modulePath: 'deutsche-telekom/smn', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'deutsche-telekom/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'deutsche-telekom/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'vpn', label: 'Vpn', modulePath: 'deutsche-telekom/vpn', status: 'planned' },
   { type: 'waf', label: 'Waf', modulePath: 'deutsche-telekom/waf', status: 'planned' },
 
@@ -1162,8 +1177,8 @@ export const DEUTSCHE_TELEKOM_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const CTRLS_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'Network', modulePath: 'ctrls/network', status: 'planned' },
-  { type: 'vm', label: 'Compute instance', modulePath: 'ctrls/compute-instance', status: 'planned' },
+  { type: 'network', label: 'Network (+ subnets)', modulePath: 'ctrls/network', status: 'planned' },
+  { type: 'compute-instance', label: 'Compute instance', modulePath: 'ctrls/compute-instance', status: 'planned' },
   { type: 'kubernetes', label: 'Kubernetes', modulePath: 'ctrls/kubernetes', status: 'planned' },
   { type: 'object-storage', label: 'Object storage', modulePath: 'ctrls/object-storage', status: 'planned' },
   { type: 'load-balancer', label: 'Load balancer', modulePath: 'ctrls/load-balancer', status: 'planned' },
@@ -1178,7 +1193,7 @@ export const CTRLS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'nutanix-vm', label: 'Nutanix Vm', modulePath: 'ctrls/nutanix-vm', status: 'planned' },
   { type: 'router', label: 'Router', modulePath: 'ctrls/router', status: 'planned' },
   { type: 'security-group', label: 'Security Group', modulePath: 'ctrls/security-group', status: 'planned' },
-  { type: 'subnet', label: 'Subnet', modulePath: 'ctrls/subnet', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'ctrls/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
   { type: 'volume', label: 'Volume', modulePath: 'ctrls/volume', status: 'planned' },
   { type: 'volume-attach', label: 'Volume Attach', modulePath: 'ctrls/volume-attach', status: 'planned' },
   { type: 'vsphere-network', label: 'Vsphere Network', modulePath: 'ctrls/vsphere-network', status: 'planned' },
@@ -1202,8 +1217,9 @@ export const CTRLS_CATALOG: ResourceCatalogEntry[] = [
 ];
 
 export const YOTTA_CATALOG: ResourceCatalogEntry[] = [
-  { type: 'network', label: 'Network', modulePath: 'yotta/network', status: 'planned' },
-  { type: 'vm', label: 'Compute instance', modulePath: 'yotta/compute-instance', status: 'planned' },
+  { type: 'network', label: 'Network (+ subnets)', modulePath: 'yotta/network', status: 'planned' },
+  { type: 'subnet', label: 'Subnet (folded into network)', modulePath: 'yotta/network', status: 'planned', foldInto: { parentType: 'network', parentKey: 'vpc', variable: 'subnets', listMode: 'object', itemMap: { name: 'name', cidr: 'cidr', region: 'region', description: 'description' } } },
+  { type: 'compute-instance', label: 'Compute instance', modulePath: 'yotta/compute-instance', status: 'planned' },
   { type: 'kubernetes', label: 'Kubernetes', modulePath: 'yotta/kubernetes', status: 'planned' },
   { type: 'object-storage', label: 'Object storage', modulePath: 'yotta/object-storage', status: 'planned' },
   { type: 'load-balancer', label: 'Load balancer', modulePath: 'yotta/load-balancer', status: 'planned' },
@@ -1330,14 +1346,12 @@ export const OPENSHIFT_CATALOG: ResourceCatalogEntry[] = [
 
 ];
 
-/** Redis Enterprise Cloud — cloud choice is the catalog subtype (module folder). */
 export const REDIS_ENTERPRISE_CATALOG: ResourceCatalogEntry[] = [
   { type: 'aws', label: 'Redis Enterprise on AWS', modulePath: 'redis-enterprise/aws', status: 'planned' },
   { type: 'azure', label: 'Redis Enterprise on Azure', modulePath: 'redis-enterprise/azure', status: 'planned' },
   { type: 'gcp', label: 'Redis Enterprise on GCP', modulePath: 'redis-enterprise/gcp', status: 'planned' },
 ];
 
-/** Confluent Cloud — single root module. */
 export const CONFLUENT_CLOUD_CATALOG: ResourceCatalogEntry[] = [
   { type: 'confluent-cloud', label: 'Confluent Cloud', modulePath: 'confluent-cloud', status: 'planned' },
 ];

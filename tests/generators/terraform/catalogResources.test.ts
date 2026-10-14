@@ -16,7 +16,7 @@ describe('generators/terraform — stack name binding (aws)', () => {
           ingress_rules: [{ from_port: 22, to_port: 22, protocol: 'tcp', cidr_blocks: ['0.0.0.0/0'] }],
         },
         {
-          type: 'vm',
+          type: 'ec2-instance',
           name: 'lab-vm',
           subnet: 'lab-public',
           securityGroups: ['lab-ssh'],
@@ -38,7 +38,7 @@ describe('generators/terraform — stack name binding (aws)', () => {
       'aws',
       [
         {
-          type: 'vm',
+          type: 'ec2-instance',
           name: 'x',
           subnet: 'subnet-abc',
           image: 'ami-abc',

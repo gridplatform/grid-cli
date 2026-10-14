@@ -97,11 +97,11 @@ export function renderCatalogResources(
   for (const [key, kids] of childrenByParent) {
     if (topLevelKeys.has(key)) continue;
     const [parentType, parentName] = key.split(':');
-    if (parentType === 'vpc' && depNetwork.vpcOwner.has(parentName)) {
+    if ((parentType === 'vpc' || parentType === 'network') && depNetwork.vpcOwner.has(parentName)) {
       throw new Error(
-        `Subnet(s) ${kids.map((k) => `"${k.name}"`).join(', ')} belong with VPC "${parentName}" ` +
-          `in that VPC's own unit JSON — do not declare them again on a consumer unit. ` +
-          `On the VM/SG unit, only reference subnet/vpc by name and list the VPC unit in metadata.dependsOn.`
+        `Subnet(s) ${kids.map((k) => `"${k.name}"`).join(', ')} belong with ${parentType} "${parentName}" ` +
+          `in that network unit's own JSON — do not declare them again on a consumer unit. ` +
+          `On the compute/SG unit, only reference subnet/network by name and list the network unit in metadata.dependsOn.`
       );
     }
     const names = kids.map((k) => `"${k.name}"`).join(', ');
@@ -188,12 +188,12 @@ export function renderStackOutputs(provider: ProviderId, resources: Resource[]):
   let any = false;
   for (const resource of resources) {
     if (foldedAway.has(resource)) continue;
-    if (resource.type !== 'vpc') continue;
+    if (resource.type !== 'vpc' && resource.type !== 'network') continue;
     any = true;
     const mod = moduleLabel(resource);
-    const kids = childrenByParent.get(parentKey('vpc', resource.name)) ?? [];
+    const kids = childrenByParent.get(parentKey(resource.type, resource.name)) ?? [];
     lines.push(`output "vpc_id" {
-  description = "VPC id for ${resource.name}"
+  description = "VPC/network id for ${resource.name}"
   value       = module.${mod}.vpc_id
 }`);
     lines.push(`output "public_subnet_ids" {

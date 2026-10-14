@@ -24,8 +24,15 @@ const SubnetResourceSchema = z.object({
   description: z.string().optional(),
 });
 
+const COMPUTE_RESOURCE_TYPES = [
+  'ec2-instance',
+  'compute-engine-instance',
+  'virtual-machine',
+  'compute-instance',
+] as const;
+
 const VmResourceSchema = z.object({
-  type: z.literal('vm'),
+  type: z.enum(COMPUTE_RESOURCE_TYPES),
   name: z.string(),
   machineType: z.string(),
   zone: z.string().optional(),
@@ -37,11 +44,12 @@ const VmResourceSchema = z.object({
   description: z.string().optional(),
 });
 
-/**
- * Types with a dedicated Zod schema (stricter than passthrough generics).
- * Still rendered through the shared catalog path.
- */
-export const STRUCTURED_RESOURCE_TYPES = ['vpc', 'subnet', 'vm'] as const;
+/** Dedicated Zod schemas; everything else uses generic passthrough. */
+export const STRUCTURED_RESOURCE_TYPES = [
+  'vpc',
+  'subnet',
+  ...COMPUTE_RESOURCE_TYPES,
+] as const;
 
 /**
  * Any other catalogued resource type. Keys beyond `type`/`name`/`description`
@@ -105,10 +113,9 @@ export function isSubnetResource(resource: Resource): resource is SubnetResource
 }
 
 export function isVmResource(resource: Resource): resource is VmResource {
-  return resource.type === 'vm';
+  return (COMPUTE_RESOURCE_TYPES as readonly string[]).includes(resource.type);
 }
 
-/** True when the resource uses a dedicated Zod schema (vpc/subnet/vm). */
 export function isStructuredResource(resource: Resource): boolean {
   return (STRUCTURED_RESOURCE_TYPES as readonly string[]).includes(resource.type);
 }

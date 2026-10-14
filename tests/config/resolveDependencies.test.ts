@@ -52,7 +52,7 @@ describe('loadConfigWithDependencies', () => {
       },
       resources: [
         {
-          type: 'vm',
+          type: 'ec2-instance',
           name: 'grid-labs-vm',
           machineType: 't3.micro',
           subnet: 'grid-labs-public',
