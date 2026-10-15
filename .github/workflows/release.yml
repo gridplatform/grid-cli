@@ -1,9 +1,7 @@
 name: Release
 
-# Publishes a GitHub Release on immutable semver tags only (vX.Y.Z / vX.Y.Z-lts).
-# Do NOT force-move floating git tags like `current` / `lts` — that breaks
-# `git pull --tags` for every clone (tag clobber).
-# grid-core image builds clone this repository at the same version tag.
+# Creates a GitHub Release when a semver tag is pushed (`vX.Y.Z` or `vX.Y.Z-lts`).
+# Downstream image builds pin this repo at the same tag.
 
 on:
   push:
