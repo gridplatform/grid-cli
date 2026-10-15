@@ -4,7 +4,7 @@ import type { ProviderAdapter } from '../types';
 export const gcpProvider: ProviderAdapter = {
   id: 'gcp',
   label: 'Google Cloud',
-  status: 'supported',
+  status: 'planned',
   defaultRegion: 'us-central1',
   moduleRoot: 'gcp',
   renderProviderBlock(_config: GridConfig): string {

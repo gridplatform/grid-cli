@@ -9,11 +9,11 @@ const path = require('path');
 const bankRoot = path.resolve(__dirname, '../../grid-terraform');
 const catalogPath = path.resolve(__dirname, '../src/generators/terraform/resourceCatalog.ts');
 
-/** @type {Record<string, { exportName: string, defaultStatus: 'planned' | 'coming_soon' }>} */
+/** @type {Record<string, { exportName: string, defaultStatus: 'planned' }>} */
 const PROVIDERS = {
   aws: { exportName: 'AWS_CATALOG', defaultStatus: 'planned' },
   gcp: { exportName: 'GCP_CATALOG', defaultStatus: 'planned' },
-  azure: { exportName: 'AZURE_CATALOG', defaultStatus: 'coming_soon' },
+  azure: { exportName: 'AZURE_CATALOG', defaultStatus: 'planned' },
   oracle: { exportName: 'ORACLE_CATALOG', defaultStatus: 'planned' },
   ibm: { exportName: 'IBM_CATALOG', defaultStatus: 'planned' },
   alibaba: { exportName: 'ALIBABA_CATALOG', defaultStatus: 'planned' },

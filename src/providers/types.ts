@@ -41,7 +41,7 @@ export const PROVIDER_IDS: readonly ProviderId[] = [
   'confluent-cloud',
 ] as const;
 
-export type ProviderStatus = 'supported' | 'coming_soon' | 'planned';
+export type ProviderStatus = 'supported' | 'planned';
 
 /**
  * Cloud adapter: identity + Terraform `provider` block only.

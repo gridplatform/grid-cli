@@ -33,8 +33,7 @@ export function providersCommand(program: Command) {
       console.log(chalk.bold('\nGrid CLI providers\n'));
       const statusColor = {
         supported: chalk.green,
-        coming_soon: chalk.yellow,
-        planned: chalk.dim,
+        planned: chalk.yellow,
       } as const;
 
       for (const p of providers) {

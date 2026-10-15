@@ -4,7 +4,7 @@ import type { ProviderAdapter } from '../types';
 export const azureProvider: ProviderAdapter = {
   id: 'azure',
   label: 'Microsoft Azure',
-  status: 'coming_soon',
+  status: 'planned',
   defaultRegion: 'eastus',
   moduleRoot: 'azure',
   renderProviderBlock(_config: GridConfig): string {
