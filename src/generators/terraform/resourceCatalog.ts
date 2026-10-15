@@ -109,7 +109,6 @@ export const AWS_CATALOG: ResourceCatalogEntry[] = [
   { type: 'codedeploy', label: 'Codedeploy', modulePath: 'aws/codedeploy', status: 'supported' },
   { type: 'codepipeline', label: 'Codepipeline', modulePath: 'aws/codepipeline', status: 'supported' },
   { type: 'cognito', label: 'Cognito', modulePath: 'aws/cognito', status: 'supported' },
-  { type: 'config', label: 'Config', modulePath: 'aws/config', status: 'supported' },
   { type: 'direct-connect', label: 'Direct Connect', modulePath: 'aws/direct-connect', status: 'supported' },
   { type: 'documentdb', label: 'Documentdb', modulePath: 'aws/documentdb', status: 'supported' },
   { type: 'efs', label: 'Efs', modulePath: 'aws/efs', status: 'supported' },
@@ -853,7 +852,6 @@ export const ALIBABA_CATALOG: ResourceCatalogEntry[] = [
 
   // Module bank scaffolds (sync-resource-catalog.js)
   { type: 'cms', label: 'Cms', modulePath: 'alibaba/cms', status: 'planned' },
-  { type: 'config', label: 'Config', modulePath: 'alibaba/config', status: 'planned' },
   { type: 'ecs', label: 'Ecs', modulePath: 'alibaba/ecs', status: 'planned' },
   { type: 'ess', label: 'Ess', modulePath: 'alibaba/ess', status: 'planned' },
   { type: 'oss', label: 'Oss', modulePath: 'alibaba/oss', status: 'planned' },
@@ -1023,7 +1021,6 @@ export const HUAWEI_CATALOG: ResourceCatalogEntry[] = [
   { type: 'ccm', label: 'Ccm', modulePath: 'huawei/ccm', status: 'planned' },
   { type: 'cdm', label: 'Cdm', modulePath: 'huawei/cdm', status: 'planned' },
   { type: 'codearts-pipeline', label: 'Codearts Pipeline', modulePath: 'huawei/codearts-pipeline', status: 'planned' },
-  { type: 'config', label: 'Config', modulePath: 'huawei/config', status: 'planned' },
   { type: 'dayu', label: 'Dayu', modulePath: 'huawei/dayu', status: 'planned' },
   { type: 'dcs', label: 'Dcs', modulePath: 'huawei/dcs', status: 'planned' },
   { type: 'dds', label: 'Dds', modulePath: 'huawei/dds', status: 'planned' },
