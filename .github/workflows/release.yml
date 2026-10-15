@@ -1,9 +1,9 @@
 name: Release
 
-# Publishes a GitHub Release and floating git tags on version tags.
-#   Current: vX.Y.Z → tag `current`
-#   LTS:     vX.Y.Z-lts → tags `current` and `lts`
-# grid-core image builds clone this repository at the same tag.
+# Publishes a GitHub Release on immutable semver tags only (vX.Y.Z / vX.Y.Z-lts).
+# Do NOT force-move floating git tags like `current` / `lts` — that breaks
+# `git pull --tags` for every clone (tag clobber).
+# grid-core image builds clone this repository at the same version tag.
 
 on:
   push:
@@ -44,17 +44,6 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-
-      - name: Update channel tags
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f current "${GITHUB_SHA}"
-          git push -f origin refs/tags/current
-          if [[ "${{ steps.meta.outputs.is_lts }}" == "true" ]]; then
-            git tag -f lts "${GITHUB_SHA}"
-            git push -f origin refs/tags/lts
-          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
