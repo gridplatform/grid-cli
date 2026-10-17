@@ -17,8 +17,10 @@ import {
   oracleProvider,
   ovhProvider,
   rancherProvider,
+  mongodbProvider,
   redisEnterpriseProvider,
   tencentProvider,
+  uthoProvider,
   yottaProvider,
 } from './catalogOnly';
 
@@ -43,6 +45,8 @@ export function bootstrapProviders(): void {
   registerProvider(openshiftProvider);
   registerProvider(redisEnterpriseProvider);
   registerProvider(confluentCloudProvider);
+  registerProvider(uthoProvider);
+  registerProvider(mongodbProvider);
 
   bootstrapped = true;
 }

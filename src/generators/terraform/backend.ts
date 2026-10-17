@@ -106,7 +106,7 @@ export function normalizeBackendMode(raw: string | undefined): TerraformBackendM
   if (m === 'oracle') return 'oci';
   if (m === 'tencent' || m === 'tencentcloud') return 'cos';
   // S3-compatible object stores used by module-bank / agent-space clouds:
-  // Huawei OBS, OVH, Deutsche Telekom OTC, IBM COS, CtrlS, Yotta, MinIO, …
+  // Huawei OBS, OVH, Deutsche Telekom OTC, IBM COS, CtrlS, Yotta, Utho, MinIO, …
   if (
     m === 'obs' ||
     m === 'huawei' ||
@@ -119,7 +119,8 @@ export function normalizeBackendMode(raw: string | undefined): TerraformBackendM
     m === 'ibm' ||
     m === 'ibmcloud' ||
     m === 'ctrls' ||
-    m === 'yotta'
+    m === 'yotta' ||
+    m === 'utho'
   ) {
     return 's3compat';
   }

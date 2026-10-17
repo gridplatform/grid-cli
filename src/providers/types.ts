@@ -20,7 +20,9 @@ export type ProviderId =
   | 'rancher'
   | 'openshift'
   | 'redis-enterprise'
-  | 'confluent-cloud';
+  | 'confluent-cloud'
+  | 'utho'
+  | 'mongodb';
 
 export const PROVIDER_IDS: readonly ProviderId[] = [
   'aws',
@@ -39,6 +41,8 @@ export const PROVIDER_IDS: readonly ProviderId[] = [
   'openshift',
   'redis-enterprise',
   'confluent-cloud',
+  'utho',
+  'mongodb',
 ] as const;
 
 export type ProviderStatus = 'supported' | 'planned';

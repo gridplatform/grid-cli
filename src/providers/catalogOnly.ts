@@ -266,3 +266,45 @@ export const confluentCloudProvider = provider({
 provider "confluent" {}
 `,
 });
+
+export const uthoProvider = provider({
+  id: 'utho',
+  label: 'Utho Cloud',
+  status: 'planned',
+  defaultRegion: 'inmumbaizone2',
+  moduleRoot: 'utho',
+  message: 'Modules under grid-terraform/utho. Configure the Utho provider before apply.',
+  providerBlock: `terraform {
+  required_providers {
+    utho = {
+      source  = "uthoplatforms/utho"
+      version = ">= 0.6.5"
+    }
+  }
+  required_version = ">= 1.0"
+}
+
+provider "utho" {}
+`,
+});
+
+export const mongodbProvider = provider({
+  id: 'mongodb',
+  label: 'MongoDB Atlas',
+  status: 'planned',
+  defaultRegion: 'us-east-1',
+  moduleRoot: 'mongodb',
+  message: 'Modules under grid-terraform/mongodb. Configure the MongoDB Atlas provider before apply.',
+  providerBlock: `terraform {
+  required_providers {
+    mongodbatlas = {
+      source  = "mongodb/mongodbatlas"
+      version = ">= 2.0"
+    }
+  }
+  required_version = ">= 1.0"
+}
+
+provider "mongodbatlas" {}
+`,
+});

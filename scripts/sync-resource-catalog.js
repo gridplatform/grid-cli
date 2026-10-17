@@ -25,6 +25,8 @@ const PROVIDERS = {
   yotta: { exportName: 'YOTTA_CATALOG', defaultStatus: 'planned' },
   rancher: { exportName: 'RANCHER_CATALOG', defaultStatus: 'planned' },
   openshift: { exportName: 'OPENSHIFT_CATALOG', defaultStatus: 'planned' },
+  utho: { exportName: 'UTHO_CATALOG', defaultStatus: 'planned' },
+  mongodb: { exportName: 'MONGODB_CATALOG', defaultStatus: 'planned' },
 };
 
 /** Self-hosted LLM module folder names (align with scaffold-provider-banks.js UNMANAGED_LLM). */

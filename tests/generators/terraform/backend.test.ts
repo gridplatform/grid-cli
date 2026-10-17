@@ -110,6 +110,7 @@ describe('terraform backend', () => {
     expect(normalizeBackendMode('ibm')).toBe('s3compat');
     expect(normalizeBackendMode('ctrls')).toBe('s3compat');
     expect(normalizeBackendMode('yotta')).toBe('s3compat');
+    expect(normalizeBackendMode('utho')).toBe('s3compat');
     expect(normalizeBackendMode('alibaba')).toBe('oss');
     expect(normalizeBackendMode('oracle')).toBe('oci');
   });
