@@ -365,7 +365,7 @@ terraform {
 
   return `# Local backend (lab / single-node only).
 # Self-host / multi-VM: set GRID_TF_BACKEND=s3|gcs|azurerm|oci|oss|cos|s3compat
-#   See https://gridplatform.github.io/doc/Install/Remote_State
+#   See https://gridplatform.org/doc/Install/Remote_State
 
 terraform {
   backend "local" {

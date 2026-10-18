@@ -4,7 +4,7 @@ Command-line tool for Grid: turn desired-state JSON into Terraform using the **[
 
 **[grid-core](https://github.com/gridplatform/grid-core)** uses this tool on every console release (`generate`, then Terraform). You can also run it alone from a terminal.
 
-**Docs:** [CLI (AWS / GCP)](https://gridplatform.github.io/doc/CLI/Overview) · [Install](https://gridplatform.github.io/doc/Install/Overview)
+**Docs:** [CLI (AWS / GCP)](https://gridplatform.org/doc/CLI/Overview) · [Install](https://gridplatform.org/doc/Install/Overview)
 
 ## Quick start
 
