@@ -56,7 +56,6 @@ const UNMANAGED_LLM = new Set([
   'deepspeed',
   'llm-inference-endpoint',
   'karpenter',
-  'eks-gpu-node-group',
 ]);
 
 const UNMANAGED_LLM_LABEL_PROVIDERS = new Set(['aws', 'gcp', 'azure']);

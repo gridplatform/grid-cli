@@ -295,7 +295,6 @@ const CLOUDS = [
 /** Self-hosted LLM / GPU serving stacks — cloud TF for compute; runtime via helm/kubernetes. */
 const UNMANAGED_LLM = uniqModules([
   'gpu-instance', // bare GPU VM (EC2 G/P, GCE A2/A3, Azure ND/NC, etc.)
-  'gpu-node-pool', // K8s GPU node group / node pool
   'nvidia-gpu-operator', // Helm: drivers/device plugin (hashicorp/helm)
   'nvidia-nim', // NVIDIA NIM operator / self-hosted NIM
   'vllm', // vLLM OpenAI-compatible serving (Helm/K8s)
@@ -353,7 +352,7 @@ const AWS_EXTRA = uniqModules([
   'clean-rooms', 'datazone', 'q-business', 'verified-permissions', 'payment-cryptography',
   ...UNMANAGED_LLM,
   'karpenter',
-  'eks-gpu-node-group',
+  'gpu-node-group',
 ]);
 
 const AZURE_EXTRA = uniqModules([
@@ -375,6 +374,7 @@ const AZURE_EXTRA = uniqModules([
   'data-share', 'maintenance', 'lighthouse', 'media-services', 'mixed-reality',
   'timeseries-insights', 'hybrid-compute', 'fluid-relay', 'fabric', 'graph', 'elastic-cloud',
   ...UNMANAGED_LLM,
+  'gpu-node-pool',
 ]);
 
 const GCP_EXTRA = uniqModules([
@@ -392,6 +392,7 @@ const GCP_EXTRA = uniqModules([
   'cloud-logging', 'monitoring', 'error-reporting', 'cloud-trace', 'bigquery-data-transfer',
   'dataproc-metastore', 'dataform', 'redis-cluster',
   ...UNMANAGED_LLM,
+  'gpu-node-pool',
 ]);
 
 function humanizeModuleName(moduleName) {
